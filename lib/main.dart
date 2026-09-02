@@ -86,9 +86,9 @@ class _MainScreenState extends State<MainScreen> {
               );
 
       final matchesType =
-          _filterType == 'all' ||
-          (_filterType == 'income' && item.isIncome) ||
-          (_filterType == 'expense' && !item.isIncome);
+    _filterType == 'all' ||
+    (_filterType == 'income' && item.isIncome) ||
+    (_filterType == 'expense' && !item.isIncome);
 
       return matchesSearch && matchesType;
     }).toList();
