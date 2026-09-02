@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-
-void main() {
+import 'package:shared_preferences/shared_preferences.dart';
+ main() {
   runApp(const SalonManagerApp());
 }
 
