@@ -22,6 +22,7 @@ class SalonManagerApp extends StatelessWidget {
     );
   }
 }
+
 class TransactionItem {
   String id;
   String title;
@@ -38,6 +39,28 @@ class TransactionItem {
     required this.isIncome,
     required this.dateTime,
   });
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'title': title,
+      'staffName': staffName,
+      'amount': amount,
+      'isIncome': isIncome,
+      'dateTime': dateTime.toIso8601String(),
+    };
+  }
+
+  factory TransactionItem.fromMap(Map<String, dynamic> map) {
+    return TransactionItem(
+      id: map['id'] ?? '',
+      title: map['title'] ?? '',
+      staffName: map['staffName'] ?? 'ያልተጠቀሰ',
+      amount: (map['amount'] ?? 0).toDouble(),
+      isIncome: map['isIncome'] ?? true,
+      dateTime: DateTime.parse(map['dateTime']),
+    );
+  }
 }
 
 class MainScreen extends StatefulWidget {
@@ -62,6 +85,49 @@ class _MainScreenState extends State<MainScreen> {
     'https://picsum.photos/500/500?random=12',
   ];
 
+  @override
+  void initState() {
+    super.initState();
+    _loadTransactions();
+  }
+
+  Future<void> _loadTransactions() async {
+    final prefs = await SharedPreferences.getInstance();
+    final savedData = prefs.getString('transactions');
+
+    if (savedData == null) return;
+
+    try {
+      final List<dynamic> decodedData = jsonDecode(savedData);
+
+      setState(() {
+        _transactions.clear();
+        _transactions.addAll(
+          decodedData.map(
+            (item) => TransactionItem.fromMap(
+              Map<String, dynamic>.from(item),
+            ),
+          ),
+        );
+      });
+    } catch (e) {
+      debugPrint('መረጃ ሲጫን ስህተት: $e');
+    }
+  }
+
+  Future<void> _saveTransactions() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    final data = _transactions
+        .map((item) => item.toMap())
+        .toList();
+
+    await prefs.setString(
+      'transactions',
+      jsonEncode(data),
+    );
+  }
+
   double get totalIncome {
     return _transactions
         .where((item) => item.isIncome)
@@ -81,15 +147,17 @@ class _MainScreenState extends State<MainScreen> {
   List<TransactionItem> get filteredTransactions {
     return _transactions.where((item) {
       final matchesSearch =
-          item.title.toLowerCase().contains(_searchText.toLowerCase()) ||
-              item.staffName.toLowerCase().contains(
+          item.title.toLowerCase().contains(
+                _searchText.toLowerCase(),
+              ) ||
+          item.staffName.toLowerCase().contains(
                 _searchText.toLowerCase(),
               );
 
       final matchesType =
-    _filterType == 'all' ||
-    (_filterType == 'income' && item.isIncome) ||
-    (_filterType == 'expense' && !item.isIncome);
+          _filterType == 'all' ||
+          (_filterType == 'income' && item.isIncome) ||
+          (_filterType == 'expense' && !item.isIncome);
 
       return matchesSearch && matchesType;
     }).toList();
@@ -216,16 +284,21 @@ class _MainScreenState extends State<MainScreen> {
                         label: Text(
                           item == null ? 'መዝግብ' : 'አስቀምጥ',
                         ),
-                        onPressed: () {
-                          final title = titleController.text.trim();
-                          final staff = staffController.text.trim();
+                        onPressed: () async {
+                          final title =
+                              titleController.text.trim();
+                          final staff =
+                              staffController.text.trim();
                           final amount =
-                              double.tryParse(amountController.text);
+                              double.tryParse(
+                            amountController.text,
+                          );
 
                           if (title.isEmpty ||
                               amount == null ||
                               amount <= 0) {
-                            ScaffoldMessenger.of(context).showSnackBar(
+                            ScaffoldMessenger.of(context)
+                                .showSnackBar(
                               const SnackBar(
                                 content: Text(
                                   'እባክዎ ትክክለኛ መረጃ ያስገቡ',
@@ -261,7 +334,13 @@ class _MainScreenState extends State<MainScreen> {
                             }
                           });
 
-                          Navigator.pop(bottomSheetContext);
+                          await _saveTransactions();
+
+                          if (bottomSheetContext.mounted) {
+                            Navigator.pop(
+                              bottomSheetContext,
+                            );
+                          }
                         },
                       ),
                     ),
@@ -290,11 +369,16 @@ class _MainScreenState extends State<MainScreen> {
               child: const Text('ይቅር'),
             ),
             ElevatedButton(
-              onPressed: () {
+              onPressed: () async {
                 setState(() {
                   _transactions.remove(item);
                 });
-                Navigator.pop(dialogContext);
+
+                await _saveTransactions();
+
+                if (dialogContext.mounted) {
+                  Navigator.pop(dialogContext);
+                }
               },
               child: const Text('አጥፋ'),
             ),
@@ -302,9 +386,7 @@ class _MainScreenState extends State<MainScreen> {
         );
       },
     );
-  }
-
-  Widget _moneyText(
+  }  Widget _moneyText(
     double amount, {
     required Color color,
   }) {
@@ -365,11 +447,8 @@ class _MainScreenState extends State<MainScreen> {
                       ),
                     ],
                   ),
-
                   const Divider(color: Colors.white54),
-
                   const SizedBox(height: 10),
-
                   Row(
                     mainAxisAlignment:
                         MainAxisAlignment.spaceBetween,
@@ -384,9 +463,7 @@ class _MainScreenState extends State<MainScreen> {
                       ),
                     ],
                   ),
-
                   const SizedBox(height: 15),
-
                   Row(
                     mainAxisAlignment:
                         MainAxisAlignment.spaceBetween,
@@ -401,11 +478,8 @@ class _MainScreenState extends State<MainScreen> {
                       ),
                     ],
                   ),
-
                   const SizedBox(height: 15),
-
                   const Divider(color: Colors.white54),
-
                   Row(
                     mainAxisAlignment:
                         MainAxisAlignment.spaceBetween,
@@ -429,9 +503,7 @@ class _MainScreenState extends State<MainScreen> {
               ),
             ),
           ),
-
           const SizedBox(height: 20),
-
           const Text(
             'ፈጣን አገልግሎቶች',
             style: TextStyle(
@@ -439,9 +511,7 @@ class _MainScreenState extends State<MainScreen> {
               fontWeight: FontWeight.bold,
             ),
           ),
-
           const SizedBox(height: 10),
-
           Row(
             children: [
               Expanded(
@@ -469,9 +539,7 @@ class _MainScreenState extends State<MainScreen> {
               ),
             ],
           ),
-
           const SizedBox(height: 25),
-
           const Text(
             'የቅርብ ጊዜ መዝገቦች',
             style: TextStyle(
@@ -479,9 +547,7 @@ class _MainScreenState extends State<MainScreen> {
               fontWeight: FontWeight.bold,
             ),
           ),
-
           const SizedBox(height: 10),
-
           if (_transactions.isEmpty)
             const Padding(
               padding: EdgeInsets.all(30),
@@ -589,7 +655,6 @@ class _MainScreenState extends State<MainScreen> {
             ),
           ),
         ),
-
         Padding(
           padding:
               const EdgeInsets.symmetric(horizontal: 12),
@@ -620,9 +685,7 @@ class _MainScreenState extends State<MainScreen> {
             },
           ),
         ),
-
         const SizedBox(height: 10),
-
         Expanded(
           child: filteredTransactions.isEmpty
               ? const Center(
@@ -656,18 +719,15 @@ class _MainScreenState extends State<MainScreen> {
             fontWeight: FontWeight.bold,
           ),
         ),
-
         const SizedBox(height: 8),
-
         const Text(
           'እዚህ የሳሎን ስራዎችን ፎቶ ማሳየት ይቻላል።',
         ),
-
         const SizedBox(height: 20),
-
         GridView.builder(
           shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
+          physics:
+              const NeverScrollableScrollPhysics(),
           itemCount: _photos.length + 1,
           gridDelegate:
               const SliverGridDelegateWithFixedCrossAxisCount(
@@ -767,9 +827,7 @@ class _MainScreenState extends State<MainScreen> {
             ),
           ),
         ),
-
         const SizedBox(height: 15),
-
         const Center(
           child: Text(
             'Salon Manager',
@@ -779,35 +837,28 @@ class _MainScreenState extends State<MainScreen> {
             ),
           ),
         ),
-
         const SizedBox(height: 30),
-
         const ListTile(
           leading: Icon(Icons.business),
           title: Text('የሳሎን ስም'),
           subtitle: Text('የእኔ ሳሎን'),
         ),
-
         const Divider(),
-
         const ListTile(
           leading: Icon(Icons.phone),
           title: Text('ስልክ ቁጥር'),
           subtitle: Text('በኋላ ማስገባት ይቻላል'),
         ),
-
         const Divider(),
-
         const ListTile(
-          leading: Icon(Icons.admin_panel_settings),
+          leading:
+              Icon(Icons.admin_panel_settings),
           title: Text('Admin'),
           subtitle: Text(
             'የአፕሊኬሽኑ ባለቤት / አስተዳዳሪ',
           ),
         ),
-
         const Divider(),
-
         const ListTile(
           leading: Icon(Icons.info),
           title: Text('ስለ Application'),
@@ -840,9 +891,7 @@ class _MainScreenState extends State<MainScreen> {
         title: Text(titles[_currentIndex]),
         centerTitle: true,
       ),
-
       body: pages[_currentIndex],
-
       floatingActionButton:
           _currentIndex == 0 || _currentIndex == 1
               ? FloatingActionButton.extended(
@@ -853,7 +902,6 @@ class _MainScreenState extends State<MainScreen> {
                   label: const Text('አዲስ መዝግብ'),
                 )
               : null,
-
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentIndex,
         onDestinationSelected: (index) {
@@ -869,12 +917,15 @@ class _MainScreenState extends State<MainScreen> {
           ),
           NavigationDestination(
             icon: Icon(Icons.receipt_long_outlined),
-            selectedIcon: Icon(Icons.receipt_long),
+            selectedIcon:
+                Icon(Icons.receipt_long),
             label: 'ሂሳብ',
           ),
           NavigationDestination(
-            icon: Icon(Icons.photo_library_outlined),
-            selectedIcon: Icon(Icons.photo_library),
+            icon:
+                Icon(Icons.photo_library_outlined),
+            selectedIcon:
+                Icon(Icons.photo_library),
             label: 'ፎቶ',
           ),
           NavigationDestination(
