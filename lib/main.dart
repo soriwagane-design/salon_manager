@@ -386,7 +386,8 @@ class _MainScreenState extends State<MainScreen> {
         );
       },
     );
-  }  Widget _moneyText(
+  }
+    Widget _moneyText(
     double amount, {
     required Color color,
   }) {
