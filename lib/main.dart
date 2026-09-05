@@ -2096,8 +2096,3 @@ class _MainScreenState extends State<MainScreen> {
   }
 }
 '''
-
-path = Path("/mnt/data/main_updated.dart")
-path.write_text(code, encoding="utf-8")
-print(f"Created: {path}")
-print(f"Lines: {len(code.splitlines())}")
