@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:share_plus/share_plus.dart';
 
 void main() => runApp(const SalonManagerApp());
 
@@ -443,6 +444,36 @@ class _MainScreenState extends State<MainScreen> {
     await p.setString('phoneNumber', phoneNumber);
     await p.setString('salonPhoto', salonPhoto);
     await p.setString('calendarMode', calendarMode);
+  }
+
+  Future<void> backupData() async {
+    try {
+      final dir = await getApplicationDocumentsDirectory();
+      final file = File(
+        '${dir.path}/salon_manager_backup_${DateTime.now().millisecondsSinceEpoch}.json',
+      );
+      final data = {
+        'backupVersion': 1,
+        'createdAt': DateTime.now().toIso8601String(),
+        'salonName': salonName,
+        'phoneNumber': phoneNumber,
+        'calendarMode': calendarMode,
+        'transactions': transactions.map((e) => e.toMap()).toList(),
+        'photos': photos,
+        'deletedPhotos': deletedPhotos,
+      };
+      await file.writeAsString(jsonEncode(data));
+      await Share.shareXFiles(
+        [XFile(file.path)],
+        subject: 'Salon Manager Backup',
+        text: 'Salon Manager የመረጃ Backup ፋይል',
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Backup ማድረግ አልተቻለም: $e')),
+      );
+    }
   }
 
   // ==========================================================
@@ -2190,13 +2221,15 @@ class _MainScreenState extends State<MainScreen> {
             ),
           ),
           const SizedBox(height: 15),
-          const Card(
+          Card(
             child: ListTile(
-              leading: Icon(Icons.save),
-              title: Text('የመረጃ ማስቀመጫ'),
-              subtitle: Text(
-                'ገቢ፣ ወጪና ፎቶዎች በስልኩ ውስጥ ይቀመጣሉ።',
+              leading: const Icon(Icons.backup),
+              title: const Text('የመረጃ Backup / ማስቀመጫ'),
+              subtitle: const Text(
+                'ገቢ፣ ወጪ፣ ፕሮፋይልና የፎቶ መረጃ ወደ Backup ፋይል ይላካል።',
               ),
+              trailing: const Icon(Icons.ios_share),
+              onTap: backupData,
             ),
           ),
           const SizedBox(height: 25),
