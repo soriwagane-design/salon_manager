@@ -5,102 +5,10 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:share_plus/share_plus.dart';
 
-void main() => runApp(const SalonManagerApp());
-
-// Admin credentials are stored locally on this device.
-// First-time default: username=admin, password=1234. Change it from Settings.
-class AdminGate extends StatefulWidget {
-  const AdminGate({super.key});
-  @override State<AdminGate> createState() => _AdminGateState();
+void main() {
+  runApp(const SalonManagerApp());
 }
-
-class _AdminGateState extends State<AdminGate> {
-  bool loading = true;
-  bool loggedIn = false;
-  bool darkMode = false;
-  String username = 'admin';
-  String password = '1234';
-
-  @override
-  void initState() { super.initState(); _load(); }
-
-  Future<void> _load() async {
-    final p = await SharedPreferences.getInstance();
-    username = p.getString('adminUsername') ?? 'admin';
-    password = p.getString('adminPassword') ?? '1234';
-    darkMode = p.getBool('darkMode') ?? false;
-    if (mounted) setState(() => loading = false);
-  }
-
-  Future<void> _setDarkMode(bool value) async {
-    final p = await SharedPreferences.getInstance();
-    await p.setBool('darkMode', value);
-    if (mounted) setState(() => darkMode = value);
-  }
-
-  void _login(String u, String pw) {
-    if (u.trim() == username && pw == password) {
-      setState(() => loggedIn = true);
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('የተሳሳተ የAdmin ስም ወይም የይለፍ ቃል')));
-    }
-  }
-
-  @override Widget build(BuildContext context) {
-    if (loading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    if (loggedIn) {
-      return Theme(
-        data: ThemeData(
-          useMaterial3: true,
-          colorSchemeSeed: Colors.teal,
-          brightness: darkMode ? Brightness.dark : Brightness.light,
-        ),
-        child: MainScreen(
-          darkMode: darkMode,
-          onDarkModeChanged: _setDarkMode,
-          onLogout: () => setState(() => loggedIn = false),
-          onCredentialsChanged: _load,
-        ),
-      );
-    }
-    return AdminLoginPage(onLogin: _login);
-  }
-}
-
-class AdminLoginPage extends StatefulWidget {
-  final void Function(String username, String password) onLogin;
-  const AdminLoginPage({super.key, required this.onLogin});
-  @override State<AdminLoginPage> createState() => _AdminLoginPageState();
-}
-
-class _AdminLoginPageState extends State<AdminLoginPage> {
-  final user = TextEditingController();
-  final pass = TextEditingController();
-  bool hide = true;
-  @override void dispose() { user.dispose(); pass.dispose(); super.dispose(); }
-  @override Widget build(BuildContext context) => Scaffold(
-    body: Center(child: SingleChildScrollView(padding: const EdgeInsets.all(24), child: Card(
-      child: Padding(padding: const EdgeInsets.all(24), child: Column(mainAxisSize: MainAxisSize.min, children: [
-        const CircleAvatar(radius: 36, child: Icon(Icons.admin_panel_settings, size: 40)),
-        const SizedBox(height: 16),
-        const Text('Admin Login', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-        const SizedBox(height: 6),
-        const Text('ወደ Salon Manager ለመግባት ይግቡ'),
-        const SizedBox(height: 20),
-        TextField(controller: user, decoration: const InputDecoration(labelText: 'Username', prefixIcon: Icon(Icons.person), border: OutlineInputBorder())),
-        const SizedBox(height: 12),
-        TextField(controller: pass, obscureText: hide, onSubmitted: (_) => widget.onLogin(user.text, pass.text), decoration: InputDecoration(labelText: 'Password', prefixIcon: const Icon(Icons.lock), border: const OutlineInputBorder(), suffixIcon: IconButton(onPressed: () => setState(() => hide = !hide), icon: Icon(hide ? Icons.visibility : Icons.visibility_off)))),
-        const SizedBox(height: 20),
-        SizedBox(width: double.infinity, child: FilledButton.icon(onPressed: () => widget.onLogin(user.text, pass.text), icon: const Icon(Icons.login), label: const Text('ግባ'))),
-        const SizedBox(height: 8),
-        const Text('መጀመሪያ ጊዜ: admin / 1234', style: TextStyle(fontSize: 12)),
-      ])),
-    )),
-  ));
-}
-
 
 // ============================================================
 // ETHIOPIAN CALENDAR
@@ -131,11 +39,15 @@ class EthiopianDate {
   ];
 
   String get monthName => monthNames[month];
+
+  int get maxDay => month == 13 ? (year % 4 == 3 ? 6 : 5) : 30;
+  @override
+  String toString() => '$day $monthName $year';
 }
 
 EthiopianDate gregorianToEthiopian(DateTime date) {
   final jd = _gregorianToJd(date.year, date.month, date.day);
-  var year = ((jd - 1723856) / 365.25).floor() + 1;
+  var year = ((jd - 1724221) / 365.25).floor() + 1;
   var newYear = _ethiopianToJd(year, 1, 1);
 
   while (jd < newYear) {
@@ -143,17 +55,17 @@ EthiopianDate gregorianToEthiopian(DateTime date) {
     newYear = _ethiopianToJd(year, 1, 1);
   }
 
+  while (jd >= _ethiopianToJd(year + 1, 1, 1)) {
+    year++;
+    newYear = _ethiopianToJd(year, 1, 1);
+  }
+
   final dayOfYear = jd - newYear;
   return EthiopianDate(
     year,
-    (dayOfYear ~/ 30) + 1,
+    (dayOfYear / 30).floor() + 1,
     (dayOfYear % 30) + 1,
   );
-}
-
-DateTime ethiopianToGregorian(int year, int month, int day) {
-  final jd = _ethiopianToJd(year, month, day);
-  return _jdToGregorian(jd);
 }
 
 int _gregorianToJd(int year, int month, int day) {
@@ -170,76 +82,10 @@ int _gregorianToJd(int year, int month, int day) {
 }
 
 int _ethiopianToJd(int year, int month, int day) {
-  return 1723856 + 365 * (year - 1) + (year ~/ 4) + 30 * month + day - 31;
+  return 1724221 + 365 * (year - 1) + (year ~/ 4) + 30 * month + day - 31;
 }
 
-DateTime _jdToGregorian(int jd) {
-  var l = jd + 68569;
-  final n = (4 * l) ~/ 146097;
-  l = l - (146097 * n + 3) ~/ 4;
-  final i = (4000 * (l + 1)) ~/ 1461001;
-  l = l - (1461 * i) ~/ 4 + 31;
-  final j = (80 * l) ~/ 2447;
-  final day = l - (2447 * j) ~/ 80;
-  l = j ~/ 11;
-  final month = j + 2 - 12 * l;
-  final year = 100 * (n - 49) + i + l;
-  return DateTime(year, month, day);
-}
-
-// ============================================================
-// APP
-// ============================================================
-
-class SalonManagerApp extends StatefulWidget {
-  const SalonManagerApp({super.key});
-
-  @override
-  State<SalonManagerApp> createState() => _SalonManagerAppState();
-}
-
-class _SalonManagerAppState extends State<SalonManagerApp> {
-  bool darkMode = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadTheme();
-  }
-
-  Future<void> _loadTheme() async {
-    final p = await SharedPreferences.getInstance();
-    if (!mounted) return;
-    setState(() => darkMode = p.getBool('darkMode') ?? false);
-  }
-
-  Future<void> _setTheme(bool value) async {
-    final p = await SharedPreferences.getInstance();
-    await p.setBool('darkMode', value);
-    if (mounted) setState(() => darkMode = value);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: 'Salon Manager',
-      theme: ThemeData(
-        useMaterial3: true,
-        colorSchemeSeed: Colors.teal,
-        brightness: Brightness.light,
-        scaffoldBackgroundColor: const Color(0xfff7f9f9),
-      ),
-      darkTheme: ThemeData(
-        useMaterial3: true,
-        colorSchemeSeed: Colors.teal,
-        brightness: Brightness.dark,
-      ),
-      themeMode: darkMode ? ThemeMode.dark : ThemeMode.light,
-      home: const AdminGate(),
-    );
-  }
-}
+bool isEthiopianLeapYear(int year) => (year + 1) % 4 == 0;
 
 // ============================================================
 // MODEL
@@ -277,26 +123,84 @@ class TransactionItem {
         'dateTime': dateTime.toIso8601String(),
       };
 
-  factory TransactionItem.fromMap(Map<String, dynamic> m) {
-    final income = m['isIncome'] == true;
-    var cls = m['expenseClass']?.toString() ?? '';
+  factory TransactionItem.fromMap(Map<String, dynamic> map) {
+    final income = map['isIncome'] == true;
+    var expenseClass = map['expenseClass']?.toString() ?? '';
 
-    if (!income && cls.isEmpty) {
-      const fixed = ['ኪራይ', 'ደመወዝ', 'መብራት', 'ውሃ', 'ስልክ', 'ጥበቃ'];
-      cls = fixed.contains(m['category']) ? 'ቋሚ ወጪ' : 'መደበኛ ወጪ';
+    if (!income && expenseClass.isEmpty) {
+      const fixed = ['ኪራይ', 'ውሃ', 'መብራት', 'ስልክ', 'ደመወዝ', 'ጥበቃ'];
+      expenseClass =
+          fixed.contains(map['category']) ? 'ቋሚ ወጪ' : 'መደበኛ ወጪ';
     }
 
     return TransactionItem(
-      id: m['id']?.toString() ??
+      id: map['id']?.toString() ??
           DateTime.now().microsecondsSinceEpoch.toString(),
-      title: m['title']?.toString() ?? '',
-      staffName: m['staffName']?.toString() ?? '',
-      amount: (m['amount'] as num?)?.toDouble() ?? 0,
+      title: map['title']?.toString() ?? '',
+      staffName: map['staffName']?.toString() ?? '',
+      amount: (map['amount'] as num?)?.toDouble() ?? 0,
       isIncome: income,
-      category: m['category']?.toString() ?? '',
-      expenseClass: cls,
-      dateTime: DateTime.tryParse(m['dateTime']?.toString() ?? '') ??
-          DateTime.now(),
+      category: map['category']?.toString() ?? '',
+      expenseClass: expenseClass,
+      dateTime:
+          DateTime.tryParse(map['dateTime']?.toString() ?? '') ?? DateTime.now(),
+    );
+  }
+}
+
+// ============================================================
+// APP
+// ============================================================
+
+class SalonManagerApp extends StatefulWidget {
+  const SalonManagerApp({super.key});
+
+  @override
+  State<SalonManagerApp> createState() => _SalonManagerAppState();
+}
+
+class _SalonManagerAppState extends State<SalonManagerApp> {
+  bool darkMode = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadTheme();
+  }
+
+  Future<void> _loadTheme() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    setState(() => darkMode = prefs.getBool('darkMode') ?? false);
+  }
+
+  Future<void> _setDarkMode(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('darkMode', value);
+    if (mounted) setState(() => darkMode = value);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      title: 'Salon Manager',
+      theme: ThemeData(
+        useMaterial3: true,
+        colorSchemeSeed: Colors.teal,
+        brightness: Brightness.light,
+        scaffoldBackgroundColor: const Color(0xfff7f9f9),
+      ),
+      darkTheme: ThemeData(
+        useMaterial3: true,
+        colorSchemeSeed: Colors.teal,
+        brightness: Brightness.dark,
+      ),
+      themeMode: darkMode ? ThemeMode.dark : ThemeMode.light,
+      home: MainScreen(
+        darkMode: darkMode,
+        onDarkModeChanged: _setDarkMode,
+      ),
     );
   }
 }
@@ -308,15 +212,11 @@ class TransactionItem {
 class MainScreen extends StatefulWidget {
   final bool darkMode;
   final ValueChanged<bool> onDarkModeChanged;
-  final VoidCallback onLogout;
-  final Future<void> Function() onCredentialsChanged;
 
   const MainScreen({
     super.key,
     required this.darkMode,
     required this.onDarkModeChanged,
-    required this.onLogout,
-    required this.onCredentialsChanged,
   });
 
   @override
@@ -326,10 +226,10 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> {
   int currentIndex = 0;
 
-  final transactions = <TransactionItem>[];
-  final photos = <String>[];
-  final deletedPhotos = <String>[];
-  final picker = ImagePicker();
+  final List<TransactionItem> transactions = [];
+  final List<String> photos = [];
+  final List<String> deletedPhotos = [];
+  final ImagePicker picker = ImagePicker();
 
   bool showMoney = true;
   String searchText = '';
@@ -340,8 +240,8 @@ class _MainScreenState extends State<MainScreen> {
   String salonPhoto = '';
   String calendarMode = 'ethiopian';
 
-  String selectedMonth = 'all';
-  int selectedAnnualYear = 0;
+  int selectedReportYear = 0;
+  int selectedReportMonth = 0;
 
   final fixedExpenseCategories = const [
     'ኪራይ',
@@ -384,12 +284,12 @@ class _MainScreenState extends State<MainScreen> {
   // ==========================================================
 
   Future<void> _loadAllData() async {
-    final p = await SharedPreferences.getInstance();
+    final prefs = await SharedPreferences.getInstance();
 
     try {
-      final raw = p.getString('transactions');
+      final raw = prefs.getString('transactions');
       if (raw != null) {
-        final List data = jsonDecode(raw);
+        final data = jsonDecode(raw) as List;
         transactions
           ..clear()
           ..addAll(data.map((e) =>
@@ -398,7 +298,7 @@ class _MainScreenState extends State<MainScreen> {
     } catch (_) {}
 
     try {
-      final raw = p.getString('photos');
+      final raw = prefs.getString('photos');
       if (raw != null) {
         photos
           ..clear()
@@ -407,7 +307,7 @@ class _MainScreenState extends State<MainScreen> {
     } catch (_) {}
 
     try {
-      final raw = p.getString('deletedPhotos');
+      final raw = prefs.getString('deletedPhotos');
       if (raw != null) {
         deletedPhotos
           ..clear()
@@ -417,105 +317,85 @@ class _MainScreenState extends State<MainScreen> {
 
     if (!mounted) return;
     setState(() {
-      salonName = p.getString('salonName') ?? 'የእኔ ሳሎን';
-      phoneNumber = p.getString('phoneNumber') ?? '';
-      salonPhoto = p.getString('salonPhoto') ?? '';
-      calendarMode = p.getString('calendarMode') ?? 'ethiopian';
+      salonName = prefs.getString('salonName') ?? 'የእኔ ሳሎን';
+      phoneNumber = prefs.getString('phoneNumber') ?? '';
+      salonPhoto = prefs.getString('salonPhoto') ?? '';
+      calendarMode = prefs.getString('calendarMode') ?? 'ethiopian';
+      _ensureReportSelection();
     });
   }
 
   Future<void> _saveTransactions() async {
-    final p = await SharedPreferences.getInstance();
-    await p.setString(
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
       'transactions',
       jsonEncode(transactions.map((e) => e.toMap()).toList()),
     );
   }
 
   Future<void> _savePhotos() async {
-    final p = await SharedPreferences.getInstance();
-    await p.setString('photos', jsonEncode(photos));
-    await p.setString('deletedPhotos', jsonEncode(deletedPhotos));
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('photos', jsonEncode(photos));
+    await prefs.setString('deletedPhotos', jsonEncode(deletedPhotos));
   }
 
   Future<void> _saveProfile() async {
-    final p = await SharedPreferences.getInstance();
-    await p.setString('salonName', salonName);
-    await p.setString('phoneNumber', phoneNumber);
-    await p.setString('salonPhoto', salonPhoto);
-    await p.setString('calendarMode', calendarMode);
-  }
-
-  Future<void> backupData() async {
-    try {
-      final dir = await getApplicationDocumentsDirectory();
-      final file = File(
-        '${dir.path}/salon_manager_backup_${DateTime.now().millisecondsSinceEpoch}.json',
-      );
-      final data = {
-        'backupVersion': 1,
-        'createdAt': DateTime.now().toIso8601String(),
-        'salonName': salonName,
-        'phoneNumber': phoneNumber,
-        'calendarMode': calendarMode,
-        'transactions': transactions.map((e) => e.toMap()).toList(),
-        'photos': photos,
-        'deletedPhotos': deletedPhotos,
-      };
-      await file.writeAsString(jsonEncode(data));
-      await Share.shareXFiles(
-        [XFile(file.path)],
-        subject: 'Salon Manager Backup',
-        text: 'Salon Manager የመረጃ Backup ፋይል',
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Backup ማድረግ አልተቻለም: $e')),
-      );
-    }
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('salonName', salonName);
+    await prefs.setString('phoneNumber', phoneNumber);
+    await prefs.setString('salonPhoto', salonPhoto);
+    await prefs.setString('calendarMode', calendarMode);
   }
 
   // ==========================================================
-  // DATE HELPERS
+  // CALENDAR / DATE HELPERS
   // ==========================================================
 
-  bool sameDay(DateTime a, DateTime b) =>
-      a.year == b.year && a.month == b.month && a.day == b.day;
+  EthiopianDate _eth(DateTime date) => gregorianToEthiopian(date);
 
-  EthiopianDate eth(DateTime d) => gregorianToEthiopian(d);
-
-  String formatDate(DateTime d) {
+  String _formatDate(DateTime date) {
     if (calendarMode == 'ethiopian') {
-      final e = eth(d);
+      final e = _eth(date);
       return '${e.day.toString().padLeft(2, '0')}/${e.month.toString().padLeft(2, '0')}/${e.year}';
     }
-    return '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
+    return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
   }
 
-  String formatTime(DateTime d) =>
-      '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
+  String _formatTime(DateTime date) =>
+      '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
 
-  String monthKey(DateTime d) {
+  bool _sameDay(DateTime a, DateTime b) =>
+      a.year == b.year && a.month == b.month && a.day == b.day;
+
+  String _dayKey(DateTime date) {
     if (calendarMode == 'ethiopian') {
-      final e = eth(d);
+      final e = _eth(date);
+      return '${e.year}-${e.month}-${e.day}';
+    }
+    return '${date.year}-${date.month}-${date.day}';
+  }
+
+  String _dayLabel(DateTime date) {
+    if (calendarMode == 'ethiopian') {
+      final e = _eth(date);
+      return 'ቀን ${e.day} ${e.monthName} ${e.year}';
+    }
+    return 'ቀን ${date.day}/${date.month}/${date.year}';
+  }
+
+  String _monthKey(DateTime date) {
+    if (calendarMode == 'ethiopian') {
+      final e = _eth(date);
       return '${e.year}-${e.month}';
     }
-    return '${d.year}-${d.month}';
+    return '${date.year}-${date.month}';
   }
 
-  String monthLabel(String key) {
-    if (key == 'all') return 'ሁሉም ወራት';
-    final p = key.split('-');
-    if (p.length != 2) return key;
-    final y = int.tryParse(p[0]) ?? 0;
-    final m = int.tryParse(p[1]) ?? 0;
-
-    if (calendarMode == 'ethiopian' && m >= 1 && m <= 13) {
-      return '${EthiopianDate.monthNames[m]} $y';
+  String _monthLabel(int year, int month) {
+    if (calendarMode == 'ethiopian') {
+      return '${EthiopianDate.monthNames[month]} $year';
     }
-
-    const g = [
+    const names = [
       '',
       'ጃንዩወሪ',
       'ፌብሩወሪ',
@@ -530,274 +410,315 @@ class _MainScreenState extends State<MainScreen> {
       'ኖቬምበር',
       'ዲሴምበር',
     ];
-    return m >= 1 && m <= 12 ? '${g[m]} $y' : key;
+    return '${names[month]} $year';
   }
 
-  List<String> get availableMonths {
-    final s = <String>{};
-
-    // Always make every month of the current displayed calendar year
-    // selectable, even when there is no transaction in that month.
-    final now = DateTime.now();
+  void _ensureReportSelection() {
     if (calendarMode == 'ethiopian') {
-      final e = eth(now);
-      for (var m = 1; m <= 13; m++) {
-        s.add('${e.year}-$m');
-      }
+      final now = _eth(DateTime.now());
+      if (selectedReportYear == 0) selectedReportYear = now.year;
+      if (selectedReportMonth == 0) selectedReportMonth = now.month;
     } else {
-      for (var m = 1; m <= 12; m++) {
-        s.add('${now.year}-$m');
-      }
+      final now = DateTime.now();
+      if (selectedReportYear == 0) selectedReportYear = now.year;
+      if (selectedReportMonth == 0) selectedReportMonth = now.month;
     }
-
-    // Also keep historical months that contain saved transactions.
-    for (final t in transactions) {
-      s.add(monthKey(t.dateTime));
-    }
-
-    final list = s.toList()..sort((a, b) => b.compareTo(a));
-    return ['all', ...list];
   }
 
-  List<int> get availableYears {
-    final s = <int>{};
+  int get _currentCalendarYear {
+    if (calendarMode == 'ethiopian') return _eth(DateTime.now()).year;
+    return DateTime.now().year;
+  }
+
+  List<int> get _reportYears {
+    final years = <int>{_currentCalendarYear};
     for (final t in transactions) {
-      final e = eth(t.dateTime);
-      s.add(calendarMode == 'ethiopian' ? e.year : t.dateTime.year);
+      if (calendarMode == 'ethiopian') {
+        years.add(_eth(t.dateTime).year);
+      } else {
+        years.add(t.dateTime.year);
+      }
     }
-    final now = DateTime.now();
-    final current = calendarMode == 'ethiopian' ? eth(now).year : now.year;
-    s.add(current);
-    final list = s.toList()..sort((a, b) => b.compareTo(a));
-    return list;
+    final result = years.toList()..sort((a, b) => b.compareTo(a));
+    return result;
+  }
+
+  int get _monthCount => calendarMode == 'ethiopian' ? 13 : 12;
+
+  int _daysInReportMonth(int year, int month) {
+    if (calendarMode == 'ethiopian') {
+      if (month == 13) return isEthiopianLeapYear(year) ? 6 : 5;
+      return 30;
+    }
+    return DateTime(year, month + 1, 0).day;
+  }
+
+  DateTime? _dateForReportDay(int year, int month, int day) {
+    if (calendarMode == 'gregorian') {
+      return DateTime(year, month, day, 12);
+    }
+
+    // Find a Gregorian date belonging to the requested Ethiopian date.
+    // Searching around the expected Gregorian year keeps this local and safe.
+    final approx = DateTime(year + 7, month == 13 ? 9 : month + 8, 15, 12);
+    for (var offset = -45; offset <= 45; offset++) {
+      final d = approx.add(Duration(days: offset));
+      final e = _eth(d);
+      if (e.year == year && e.month == month && e.day == day) return d;
+    }
+    return null;
+  }
+
+  List<DateTime> _reportDays(int year, int month) {
+    final days = _daysInReportMonth(year, month);
+    final result = <DateTime>[];
+    for (var day = 1; day <= days; day++) {
+      final date = _dateForReportDay(year, month, day);
+      if (date != null) result.add(date);
+    }
+    return result;
   }
 
   // ==========================================================
   // TOTALS
   // ==========================================================
 
-  double sumIncome(Iterable<TransactionItem> list) =>
+  double _sumIncome(Iterable<TransactionItem> list) =>
       list.where((e) => e.isIncome).fold(0, (s, e) => s + e.amount);
 
-  double sumExpense(Iterable<TransactionItem> list) =>
+  double _sumExpense(Iterable<TransactionItem> list) =>
       list.where((e) => !e.isIncome).fold(0, (s, e) => s + e.amount);
 
-  double sumFixed(Iterable<TransactionItem> list) => list
+  double _sumFixed(Iterable<TransactionItem> list) => list
       .where((e) => !e.isIncome && e.expenseClass == 'ቋሚ ወጪ')
       .fold(0, (s, e) => s + e.amount);
 
-  double sumRegular(Iterable<TransactionItem> list) => list
+  double _sumRegular(Iterable<TransactionItem> list) => list
       .where((e) => !e.isIncome && e.expenseClass == 'መደበኛ ወጪ')
       .fold(0, (s, e) => s + e.amount);
 
-  String money(double v) => showMoney ? '${v.toStringAsFixed(2)} ብር' : '••••';
+  String _formatMoney(double amount) =>
+      showMoney ? '${amount.toStringAsFixed(2)} ብር' : '••••';
+
+  Iterable<TransactionItem> _recordsForReportDay(DateTime day) =>
+      transactions.where((t) => _dayKey(t.dateTime) == _dayKey(day));
+
+  Iterable<TransactionItem> _recordsForReportMonth(int year, int month) =>
+      transactions.where((t) {
+        if (calendarMode == 'ethiopian') {
+          final e = _eth(t.dateTime);
+          return e.year == year && e.month == month;
+        }
+        return t.dateTime.year == year && t.dateTime.month == month;
+      });
 
   // ==========================================================
   // TRANSACTION ENTRY
   // ==========================================================
 
-  void openTransactionSheet({
-    bool income = true,
-    String? expenseClass,
-  }) {
-    final title = TextEditingController();
-    final staff = TextEditingController();
-    final amount = TextEditingController();
+  void _openTransactionSheet({bool income = true}) {
+    final titleController = TextEditingController();
+    final staffController = TextEditingController();
+    final amountController = TextEditingController();
 
     var isIncome = income;
-    var selectedClass = expenseClass ?? 'ቋሚ ወጪ';
+    var expenseClass = 'ቋሚ ወጪ';
     var category = isIncome
         ? incomeCategories.first
-        : (selectedClass == 'ቋሚ ወጪ'
-            ? fixedExpenseCategories.first
-            : regularExpenseCategories.first);
+        : fixedExpenseCategories.first;
 
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
-      builder: (sheetContext) => StatefulBuilder(
-        builder: (context, setModalState) {
-          final categories = isIncome
-              ? incomeCategories
-              : (selectedClass == 'ቋሚ ወጪ'
-                  ? fixedExpenseCategories
-                  : regularExpenseCategories);
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            final categories = isIncome
+                ? incomeCategories
+                : (expenseClass == 'ቋሚ ወጪ'
+                    ? fixedExpenseCategories
+                    : regularExpenseCategories);
 
-          if (!categories.contains(category)) category = categories.first;
+            if (!categories.contains(category)) category = categories.first;
 
-          return Padding(
-            padding: EdgeInsets.fromLTRB(
-              20,
-              10,
-              20,
-              MediaQuery.of(context).viewInsets.bottom + 20,
-            ),
-            child: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(
-                    isIncome ? '💰 ገቢ መመዝገቢያ' : '💸 ወጪ መመዝገቢያ',
-                    style: Theme.of(context).textTheme.headlineSmall
-                        ?.copyWith(fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 18),
-                  SegmentedButton<bool>(
-                    segments: const [
-                      ButtonSegment(
-                        value: true,
-                        label: Text('ገቢ'),
-                        icon: Icon(Icons.arrow_downward),
-                      ),
-                      ButtonSegment(
-                        value: false,
-                        label: Text('ወጪ'),
-                        icon: Icon(Icons.arrow_upward),
-                      ),
-                    ],
-                    selected: {isIncome},
-                    onSelectionChanged: (v) {
-                      setModalState(() {
-                        isIncome = v.first;
-                        category = isIncome
-                            ? incomeCategories.first
-                            : (selectedClass == 'ቋሚ ወጪ'
-                                ? fixedExpenseCategories.first
-                                : regularExpenseCategories.first);
-                      });
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  if (!isIncome)
-                    SegmentedButton<String>(
+            return Padding(
+              padding: EdgeInsets.only(
+                left: 20,
+                right: 20,
+                top: 10,
+                bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      isIncome ? '💰 ገቢ መመዝገቢያ' : '💸 ወጪ መመዝገቢያ',
+                      style: Theme.of(context)
+                          .textTheme
+                          .headlineSmall
+                          ?.copyWith(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 18),
+                    SegmentedButton<bool>(
                       segments: const [
                         ButtonSegment(
-                          value: 'ቋሚ ወጪ',
-                          label: Text('ቋሚ ወጪ'),
+                          value: true,
+                          label: Text('ገቢ'),
+                          icon: Icon(Icons.arrow_downward),
                         ),
                         ButtonSegment(
-                          value: 'መደበኛ ወጪ',
-                          label: Text('መደበኛ ወጪ'),
+                          value: false,
+                          label: Text('ወጪ'),
+                          icon: Icon(Icons.arrow_upward),
                         ),
                       ],
-                      selected: {selectedClass},
+                      selected: {isIncome},
                       onSelectionChanged: (v) {
                         setModalState(() {
-                          selectedClass = v.first;
-                          category = selectedClass == 'ቋሚ ወጪ'
-                              ? fixedExpenseCategories.first
-                              : regularExpenseCategories.first;
+                          isIncome = v.first;
+                          category = isIncome
+                              ? incomeCategories.first
+                              : (expenseClass == 'ቋሚ ወጪ'
+                                  ? fixedExpenseCategories.first
+                                  : regularExpenseCategories.first);
                         });
                       },
                     ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: title,
-                    decoration: InputDecoration(
-                      labelText: isIncome
-                          ? 'የአገልግሎቱ አይነት'
-                          : 'የወጪው ምክንያት',
-                      prefixIcon: const Icon(Icons.edit_note),
-                      border: const OutlineInputBorder(),
+                    const SizedBox(height: 14),
+                    if (!isIncome)
+                      SegmentedButton<String>(
+                        segments: const [
+                          ButtonSegment(
+                              value: 'ቋሚ ወጪ', label: Text('ቋሚ ወጪ')),
+                          ButtonSegment(
+                              value: 'መደበኛ ወጪ',
+                              label: Text('መደበኛ ወጪ')),
+                        ],
+                        selected: {expenseClass},
+                        onSelectionChanged: (v) {
+                          setModalState(() {
+                            expenseClass = v.first;
+                            category = expenseClass == 'ቋሚ ወጪ'
+                                ? fixedExpenseCategories.first
+                                : regularExpenseCategories.first;
+                          });
+                        },
+                      ),
+                    const SizedBox(height: 14),
+                    TextField(
+                      controller: titleController,
+                      decoration: InputDecoration(
+                        labelText:
+                            isIncome ? 'የአገልግሎቱ አይነት' : 'የወጪው ምክንያት',
+                        prefixIcon: const Icon(Icons.edit_note),
+                        border: const OutlineInputBorder(),
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: staff,
-                    decoration: const InputDecoration(
-                      labelText: 'የሰው/ሰራተኛ ስም',
-                      prefixIcon: Icon(Icons.person),
-                      border: OutlineInputBorder(),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: staffController,
+                      decoration: const InputDecoration(
+                        labelText: 'የሰው/ሰራተኛ ስም',
+                        prefixIcon: Icon(Icons.person),
+                        border: OutlineInputBorder(),
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: amount,
-                    keyboardType:
-                        const TextInputType.numberWithOptions(decimal: true),
-                    decoration: const InputDecoration(
-                      labelText: 'የገንዘብ መጠን',
-                      prefixIcon: Icon(Icons.payments),
-                      suffixText: 'ብር',
-                      border: OutlineInputBorder(),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: amountController,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      decoration: const InputDecoration(
+                        labelText: 'የገንዘብ መጠን',
+                        prefixIcon: Icon(Icons.payments),
+                        suffixText: 'ብር',
+                        border: OutlineInputBorder(),
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  DropdownButtonFormField<String>(
-                    value: category,
-                    decoration: const InputDecoration(
-                      labelText: 'ምድብ',
-                      prefixIcon: Icon(Icons.category),
-                      border: OutlineInputBorder(),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      value: category,
+                      decoration: const InputDecoration(
+                        labelText: 'ምድብ',
+                        prefixIcon: Icon(Icons.category),
+                        border: OutlineInputBorder(),
+                      ),
+                      items: categories
+                          .map((c) => DropdownMenuItem(
+                                value: c,
+                                child: Text(c),
+                              ))
+                          .toList(),
+                      onChanged: (v) {
+                        if (v != null) setModalState(() => category = v);
+                      },
                     ),
-                    items: categories
-                        .map((c) => DropdownMenuItem(
-                              value: c,
-                              child: Text(c),
-                            ))
-                        .toList(),
-                    onChanged: (v) {
-                      if (v != null) setModalState(() => category = v);
-                    },
-                  ),
-                  const SizedBox(height: 20),
-                  FilledButton.icon(
-                    onPressed: () async {
-                      final titleText = title.text.trim();
-                      final staffText = staff.text.trim();
-                      final value = double.tryParse(amount.text.trim());
+                    const SizedBox(height: 20),
+                    FilledButton.icon(
+                      onPressed: () async {
+                        final title = titleController.text.trim();
+                        final staff = staffController.text.trim();
+                        final amount =
+                            double.tryParse(amountController.text.trim());
 
-                      if (titleText.isEmpty) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('እባክዎ አይነቱን ያስገቡ'),
+                        if (title.isEmpty) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('እባክዎ አይነቱን ያስገቡ'),
+                            ),
+                          );
+                          return;
+                        }
+
+                        if (amount == null || amount <= 0) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('ትክክለኛ የገንዘብ መጠን ያስገቡ'),
+                            ),
+                          );
+                          return;
+                        }
+
+                        transactions.add(
+                          TransactionItem(
+                            id: DateTime.now()
+                                .microsecondsSinceEpoch
+                                .toString(),
+                            title: title,
+                            staffName: staff,
+                            amount: amount,
+                            isIncome: isIncome,
+                            category: category,
+                            expenseClass: isIncome ? '' : expenseClass,
+                            dateTime: DateTime.now(),
                           ),
                         );
-                        return;
-                      }
-                      if (value == null || value <= 0) {
+
+                        await _saveTransactions();
+                        if (!mounted) return;
+                        setState(() {});
+                        Navigator.pop(sheetContext);
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('ትክክለኛ የገንዘብ መጠን ያስገቡ'),
+                          SnackBar(
+                            content: Text(isIncome
+                                ? 'ገቢው ተመዝግቧል ✅'
+                                : 'ወጪው ተመዝግቧል ✅'),
                           ),
                         );
-                        return;
-                      }
-
-                      final item = TransactionItem(
-                        id: DateTime.now().microsecondsSinceEpoch.toString(),
-                        title: titleText,
-                        staffName: staffText,
-                        amount: value,
-                        isIncome: isIncome,
-                        category: category,
-                        expenseClass: isIncome ? '' : selectedClass,
-                        dateTime: DateTime.now(),
-                      );
-
-                      setState(() => transactions.add(item));
-                      await _saveTransactions();
-
-                      if (!mounted) return;
-                      Navigator.pop(sheetContext);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(isIncome
-                              ? 'ገቢው ተመዝግቧል ✅'
-                              : 'ወጪው ተመዝግቧል ✅'),
-                        ),
-                      );
-                    },
-                    icon: const Icon(Icons.save),
-                    label: const Text('መዝግብ'),
-                  ),
-                ],
+                      },
+                      icon: const Icon(Icons.save),
+                      label: const Text('መዝግብ'),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          );
-        },
-      ),
+            );
+          },
+        );
+      },
     );
   }
 
@@ -805,10 +726,10 @@ class _MainScreenState extends State<MainScreen> {
   // HOME
   // ==========================================================
 
-  void showTodayDetails(bool income) {
+  void _showTodayDetails(bool income) {
     final today = DateTime.now();
     final records = transactions
-        .where((t) => t.isIncome == income && sameDay(t.dateTime, today))
+        .where((t) => t.isIncome == income && _sameDay(t.dateTime, today))
         .toList()
       ..sort((a, b) => b.dateTime.compareTo(a.dateTime));
 
@@ -828,21 +749,26 @@ class _MainScreenState extends State<MainScreen> {
                 children: [
                   Text(
                     income ? 'የዛሬ ገቢዎች' : 'የዛሬ ወጪዎች',
-                    style: Theme.of(context).textTheme.headlineSmall
+                    style: Theme.of(context)
+                        .textTheme
+                        .headlineSmall
                         ?.copyWith(fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 8),
                   Card(
                     child: ListTile(
+                      leading: CircleAvatar(
+                        child: Icon(income
+                            ? Icons.arrow_downward
+                            : Icons.arrow_upward),
+                      ),
                       title: Text(income
                           ? 'የዛሬ ጠቅላላ ገቢ'
                           : 'የዛሬ ጠቅላላ ወጪ'),
                       trailing: Text(
-                        money(total),
+                        _formatMoney(total),
                         style: const TextStyle(
-                          fontSize: 17,
-                          fontWeight: FontWeight.bold,
-                        ),
+                            fontWeight: FontWeight.bold, fontSize: 17),
                       ),
                     ),
                   ),
@@ -854,19 +780,20 @@ class _MainScreenState extends State<MainScreen> {
                   ? const Center(child: Text('ዛሬ ምንም መዝገብ የለም'))
                   : ListView.builder(
                       itemCount: records.length,
-                      itemBuilder: (context, i) {
-                        final t = records[i];
+                      itemBuilder: (_, index) {
+                        final t = records[index];
                         return ListTile(
-                          leading: CircleAvatar(child: Text('${i + 1}')),
+                          leading: CircleAvatar(child: Text('${index + 1}')),
                           title: Text(t.title),
                           subtitle: Text(
                             '${t.staffName.isEmpty ? 'ስም የለም' : t.staffName} • '
-                            '${t.category} • ${formatTime(t.dateTime)}',
+                            '${t.category} • ${_formatTime(t.dateTime)}',
                           ),
                           trailing: Text(
-                            money(t.amount),
-                            style: const TextStyle(
+                            _formatMoney(t.amount),
+                            style: TextStyle(
                               fontWeight: FontWeight.bold,
+                              color: income ? Colors.blue : Colors.red,
                             ),
                           ),
                         );
@@ -879,12 +806,11 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
-  Widget buildHome() {
+  Widget _buildHome() {
     final today = DateTime.now();
-    final todayRecords =
-        transactions.where((t) => sameDay(t.dateTime, today));
-    final income = sumIncome(todayRecords);
-    final expense = sumExpense(todayRecords);
+    final todayRecords = transactions.where((t) => _sameDay(t.dateTime, today));
+    final income = _sumIncome(todayRecords);
+    final expense = _sumExpense(todayRecords);
     final profit = income - expense;
 
     final recent = [...transactions]
@@ -892,12 +818,11 @@ class _MainScreenState extends State<MainScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          salonName,
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
+        title: Text(salonName,
+            style: const TextStyle(fontWeight: FontWeight.bold)),
         actions: [
           IconButton(
+            tooltip: 'ገንዘብ አሳይ/ደብቅ',
             onPressed: () => setState(() => showMoney = !showMoney),
             icon: Icon(showMoney ? Icons.visibility : Icons.visibility_off),
           ),
@@ -906,126 +831,134 @@ class _MainScreenState extends State<MainScreen> {
       body: Stack(
         children: [
           Positioned(
-            right: -25,
+            right: -30,
             top: 20,
             child: Icon(
               Icons.content_cut,
               size: 150,
-              color: Theme.of(context).colorScheme.primary.withOpacity(.035),
+              color:
+                  Theme.of(context).colorScheme.primary.withOpacity(.035),
             ),
           ),
           Positioned(
-            left: -35,
+            left: -30,
             bottom: 120,
             child: Icon(
               Icons.spa,
               size: 180,
-              color: Theme.of(context).colorScheme.primary.withOpacity(.035),
+              color:
+                  Theme.of(context).colorScheme.primary.withOpacity(.035),
             ),
           ),
-          RefreshIndicator(
-            onRefresh: _loadAllData,
-            child: ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
-                Text(
-                  'የዛሬ አጠቃላይ ሁኔታ',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: todayCard(
-                        'የዛሬ ገቢ',
-                        income,
-                        Icons.arrow_downward,
-                        Colors.blue,
-                        () => showTodayDetails(true),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: todayCard(
-                        'የዛሬ ወጪ',
-                        expense,
-                        Icons.arrow_upward,
-                        Colors.red,
-                        () => showTodayDetails(false),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Card(
-                  child: ListTile(
-                    leading: const CircleAvatar(
-                      child: Icon(Icons.account_balance_wallet),
-                    ),
-                    title: const Text('የዛሬ ትርፍ'),
-                    subtitle: const Text('ገቢ - ወጪ'),
-                    trailing: Text(
-                      money(profit),
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
+          ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              Text(
+                'የዛሬ አጠቃላይ ሁኔታ',
+                style: Theme.of(context)
+                    .textTheme
+                    .titleLarge
+                    ?.copyWith(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: _todayCard(
+                      'የዛሬ ገቢ',
+                      income,
+                      Icons.arrow_downward,
+                      Colors.blue,
+                      () => _showTodayDetails(true),
                     ),
                   ),
-                ),
-                const SizedBox(height: 18),
-                FilledButton.icon(
-                  onPressed: () => openTransactionSheet(income: true),
-                  icon: const Icon(Icons.add),
-                  label: const Text('ገቢ መመዝገቢያ'),
-                ),
-                const SizedBox(height: 22),
-                Text(
-                  'የገቢና ወጪ ግራፍ',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                ),
-                const SizedBox(height: 10),
-                buildChart(
-                  income,
-                  expense,
-                  title: 'የዛሬ ግራፍ',
-                ),
-                const SizedBox(height: 22),
-                Text(
-                  'የቅርብ ጊዜ መዝገቦች',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                ),
-                const SizedBox(height: 8),
-                if (recent.isEmpty)
-                  const Card(
-                    child: Padding(
-                      padding: EdgeInsets.all(25),
-                      child: Center(
-                        child: Text('እስካሁን ምንም መዝገብ የለም'),
-                      ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _todayCard(
+                      'የዛሬ ወጪ',
+                      expense,
+                      Icons.arrow_upward,
+                      Colors.red,
+                      () => _showTodayDetails(false),
                     ),
-                  )
-                else
-                  ...recent.take(5).map(transactionTile),
-              ],
-            ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Card(
+                child: ListTile(
+                  leading: const CircleAvatar(
+                    child: Icon(Icons.account_balance_wallet),
+                  ),
+                  title: const Text('የዛሬ ትርፍ'),
+                  subtitle: const Text('ገቢ - ወጪ'),
+                  trailing: Text(
+                    _formatMoney(profit),
+                    style: const TextStyle(
+                        fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 18),
+              Row(
+                children: [
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: () => _openTransactionSheet(income: true),
+                      icon: const Icon(Icons.add),
+                      label: const Text('ገቢ መመዝገቢያ'),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => _openTransactionSheet(income: false),
+                      icon: const Icon(Icons.remove),
+                      label: const Text('ወጪ መመዝገቢያ'),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+              Text(
+                'የገቢና ወጪ ግራፍ',
+                style: Theme.of(context)
+                    .textTheme
+                    .titleLarge
+                    ?.copyWith(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 10),
+              _buildSimpleChart(income, expense),
+              const SizedBox(height: 24),
+              Text(
+                'የቅርብ ጊዜ መዝገቦች',
+                style: Theme.of(context)
+                    .textTheme
+                    .titleLarge
+                    ?.copyWith(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              if (recent.isEmpty)
+                const Card(
+                  child: Padding(
+                    padding: EdgeInsets.all(25),
+                    child: Center(child: Text('እስካሁን ምንም መዝገብ የለም')),
+                  ),
+                )
+              else
+                ...recent.take(5).map(_transactionTile),
+            ],
           ),
         ],
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => openTransactionSheet(),
+        onPressed: () => _openTransactionSheet(),
         child: const Icon(Icons.add),
       ),
     );
   }
 
-  Widget todayCard(
+  Widget _todayCard(
     String title,
     double amount,
     IconData icon,
@@ -1046,21 +979,19 @@ class _MainScreenState extends State<MainScreen> {
                 child: Icon(icon, color: color),
               ),
               const SizedBox(height: 12),
-              Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+              Text(title,
+                  style: const TextStyle(fontWeight: FontWeight.bold)),
               const SizedBox(height: 5),
               Text(
-                money(amount),
+                _formatMoney(amount),
                 style: TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.bold,
-                  color: color,
-                ),
+                    fontSize: 17,
+                    fontWeight: FontWeight.bold,
+                    color: color),
               ),
               const SizedBox(height: 6),
-              const Text(
-                'ዝርዝሩን ለማየት ይንኩ',
-                style: TextStyle(fontSize: 11),
-              ),
+              const Text('ዝርዝሩን ለማየት ይንኩ',
+                  style: TextStyle(fontSize: 11)),
             ],
           ),
         ),
@@ -1068,16 +999,12 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
-  Widget buildChart(
-    double income,
-    double expense, {
-    String title = '',
-  }) {
+  Widget _buildSimpleChart(double income, double expense) {
     final max = income > expense ? income : expense;
     if (max == 0) {
       return const Card(
         child: SizedBox(
-          height: 170,
+          height: 180,
           child: Center(child: Text('ግራፉን ለማሳየት መዝገብ ያስገቡ')),
         ),
       );
@@ -1088,30 +1015,21 @@ class _MainScreenState extends State<MainScreen> {
         padding: const EdgeInsets.all(18),
         child: Column(
           children: [
-            if (title.isNotEmpty)
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  title,
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-              ),
-            if (title.isNotEmpty) const SizedBox(height: 12),
-            chartBar('ገቢ', income, max, Colors.blue, Icons.arrow_downward),
+            _chartBar('ገቢ', income, max, Icons.arrow_downward, Colors.blue),
             const SizedBox(height: 18),
-            chartBar('ወጪ', expense, max, Colors.red, Icons.arrow_upward),
+            _chartBar('ወጪ', expense, max, Icons.arrow_upward, Colors.red),
           ],
         ),
       ),
     );
   }
 
-  Widget chartBar(
+  Widget _chartBar(
     String label,
     double amount,
     double max,
-    Color color,
     IconData icon,
+    Color color,
   ) {
     final ratio = max == 0 ? 0.0 : (amount / max).clamp(0.0, 1.0);
     return Column(
@@ -1121,15 +1039,13 @@ class _MainScreenState extends State<MainScreen> {
           children: [
             Icon(icon, size: 18, color: color),
             const SizedBox(width: 8),
-            Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
+            Text(label,
+                style: TextStyle(
+                    fontWeight: FontWeight.bold, color: color)),
             const Spacer(),
-            Text(
-              money(amount),
-              style: TextStyle(
-                color: color,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
+            Text(_formatMoney(amount),
+                style: TextStyle(
+                    fontWeight: FontWeight.bold, color: color)),
           ],
         ),
         const SizedBox(height: 7),
@@ -1139,6 +1055,7 @@ class _MainScreenState extends State<MainScreen> {
             value: ratio,
             minHeight: 14,
             color: color,
+            backgroundColor: color.withOpacity(.12),
           ),
         ),
       ],
@@ -1151,14 +1068,17 @@ class _MainScreenState extends State<MainScreen> {
 
   List<TransactionItem> get visibleTransactions {
     final q = searchText.trim().toLowerCase();
+
     final list = transactions.where((t) {
       final searchMatch = q.isEmpty ||
           t.title.toLowerCase().contains(q) ||
           t.staffName.toLowerCase().contains(q) ||
           t.category.toLowerCase().contains(q);
+
       final typeMatch = filterType == 'all' ||
           (filterType == 'income' && t.isIncome) ||
           (filterType == 'expense' && !t.isIncome);
+
       return searchMatch && typeMatch;
     }).toList();
 
@@ -1166,8 +1086,9 @@ class _MainScreenState extends State<MainScreen> {
     return list;
   }
 
-  Widget buildHistory() {
+  Widget _buildHistory() {
     final list = visibleTransactions;
+
     return Scaffold(
       appBar: AppBar(title: const Text('የሂሳብ መዝገብ')),
       body: Column(
@@ -1191,50 +1112,20 @@ class _MainScreenState extends State<MainScreen> {
           ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-            child: Row(
-              children: [
-                Expanded(
-                  child: DropdownButtonFormField<String>(
-                    value: filterType,
-                    decoration: const InputDecoration(
-                      labelText: 'አይነት',
-                      border: OutlineInputBorder(),
-                    ),
-                    items: const [
-                      DropdownMenuItem(value: 'all', child: Text('ሁሉም')),
-                      DropdownMenuItem(value: 'income', child: Text('ገቢ')),
-                      DropdownMenuItem(value: 'expense', child: Text('ወጪ')),
-                    ],
-                    onChanged: (v) {
-                      if (v != null) setState(() => filterType = v);
-                    },
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: DropdownButtonFormField<String>(
-                    value: availableMonths.contains(selectedMonth)
-                        ? selectedMonth
-                        : 'all',
-                    decoration: const InputDecoration(
-                      labelText: 'ወር',
-                      border: OutlineInputBorder(),
-                    ),
-                    items: availableMonths
-                        .map((k) => DropdownMenuItem(
-                              value: k,
-                              child: Text(
-                                monthLabel(k),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ))
-                        .toList(),
-                    onChanged: (v) {
-                      if (v != null) setState(() => selectedMonth = v);
-                    },
-                  ),
-                ),
+            child: DropdownButtonFormField<String>(
+              value: filterType,
+              decoration: const InputDecoration(
+                labelText: 'አይነት',
+                border: OutlineInputBorder(),
+              ),
+              items: const [
+                DropdownMenuItem(value: 'all', child: Text('ሁሉም')),
+                DropdownMenuItem(value: 'income', child: Text('ገቢ')),
+                DropdownMenuItem(value: 'expense', child: Text('ወጪ')),
               ],
+              onChanged: (v) {
+                if (v != null) setState(() => filterType = v);
+              },
             ),
           ),
           Expanded(
@@ -1243,19 +1134,19 @@ class _MainScreenState extends State<MainScreen> {
                 : ListView.builder(
                     padding: const EdgeInsets.all(12),
                     itemCount: list.length,
-                    itemBuilder: (_, i) => transactionTile(list[i]),
+                    itemBuilder: (_, i) => _transactionTile(list[i]),
                   ),
           ),
         ],
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => openTransactionSheet(),
+        onPressed: () => _openTransactionSheet(),
         child: const Icon(Icons.add),
       ),
     );
   }
 
-  Widget transactionTile(TransactionItem t) {
+  Widget _transactionTile(TransactionItem t) {
     final color = t.isIncome ? Colors.blue : Colors.red;
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
@@ -1273,16 +1164,13 @@ class _MainScreenState extends State<MainScreen> {
         ),
         subtitle: Text(
           '${t.staffName.isEmpty ? 'ስም የለም' : t.staffName}\n'
-          '${t.category} • ${formatDate(t.dateTime)} • ${formatTime(t.dateTime)}'
+          '${t.category} • ${_formatDate(t.dateTime)} • ${_formatTime(t.dateTime)}'
           '${t.isIncome ? '' : '\n${t.expenseClass}'}',
         ),
         isThreeLine: true,
         trailing: Text(
-          money(t.amount),
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            color: color,
-          ),
+          _formatMoney(t.amount),
+          style: TextStyle(fontWeight: FontWeight.bold, color: color),
         ),
       ),
     );
@@ -1292,51 +1180,151 @@ class _MainScreenState extends State<MainScreen> {
   // REPORTS
   // ==========================================================
 
-  Iterable<TransactionItem> transactionsForMonth(int year, int month) {
-    return transactions.where((t) {
-      if (calendarMode == 'ethiopian') {
-        final e = eth(t.dateTime);
-        return e.year == year && e.month == month;
-      }
-      return t.dateTime.year == year && t.dateTime.month == month;
-    });
+  Widget _buildReports() {
+    _ensureReportSelection();
+
+    final today = DateTime.now();
+    final todayRecords =
+        transactions.where((t) => _sameDay(t.dateTime, today));
+    final todayIncome = _sumIncome(todayRecords);
+    final todayExpense = _sumExpense(todayRecords);
+
+    final monthRecords =
+        _recordsForReportMonth(selectedReportYear, selectedReportMonth).toList();
+    final monthIncome = _sumIncome(monthRecords);
+    final monthExpense = _sumExpense(monthRecords);
+    final fixed = _sumFixed(monthRecords);
+    final regular = _sumRegular(monthRecords);
+    final monthProfit = monthIncome - monthExpense;
+
+    final annual = _annualTotals(selectedReportYear);
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('ሪፖርት')),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          _sectionTitle('የቀን ሪፖርት'),
+          const SizedBox(height: 8),
+          _reportCard('የዛሬ ገቢ', todayIncome, Icons.arrow_downward,
+              Colors.blue),
+          _reportCard('የዛሬ ወጪ', todayExpense, Icons.arrow_upward,
+              Colors.red),
+          _reportCard('የዛሬ ንጹህ ትርፍ',
+              todayIncome - todayExpense, Icons.account_balance_wallet, null),
+          const SizedBox(height: 25),
+
+          _sectionTitle('የወር ሪፖርት'),
+          const SizedBox(height: 10),
+
+          Row(
+            children: [
+              Expanded(
+                child: DropdownButtonFormField<int>(
+                  value: _reportYears.contains(selectedReportYear)
+                      ? selectedReportYear
+                      : _currentCalendarYear,
+                  decoration: const InputDecoration(
+                    labelText: 'ዓመት',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: _reportYears
+                      .map((y) =>
+                          DropdownMenuItem(value: y, child: Text('$y')))
+                      .toList(),
+                  onChanged: (v) {
+                    if (v != null) setState(() => selectedReportYear = v);
+                  },
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: DropdownButtonFormField<int>(
+                  value: selectedReportMonth,
+                  decoration: const InputDecoration(
+                    labelText: 'ወር',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: List.generate(
+                    _monthCount,
+                    (i) => i + 1,
+                  ).map((m) {
+                    return DropdownMenuItem(
+                      value: m,
+                      child: Text(
+                        calendarMode == 'ethiopian'
+                            ? EthiopianDate.monthNames[m]
+                            : _monthLabel(selectedReportYear, m),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    );
+                  }).toList(),
+                  onChanged: (v) {
+                    if (v != null) setState(() => selectedReportMonth = v);
+                  },
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Card(
+            child: ListTile(
+              leading: const CircleAvatar(
+                child: Icon(Icons.calendar_month),
+              ),
+              title: Text(
+                  _monthLabel(selectedReportYear, selectedReportMonth)),
+              subtitle: const Text('የተመረጠው ወር'),
+            ),
+          ),
+          _reportCard('የወሩ ገቢ', monthIncome, Icons.trending_up,
+              Colors.blue),
+          _reportCard('የወሩ ጠቅላላ ወጪ', monthExpense,
+              Icons.trending_down, Colors.red),
+          _reportCard('ቋሚ ወጪ', fixed, Icons.home_work, Colors.red),
+          _reportCard('መደበኛ ወጪ', regular, Icons.shopping_bag,
+              Colors.red),
+          _reportCard('የወሩ ንጹህ ትርፍ', monthProfit,
+              Icons.account_balance, null),
+
+          const SizedBox(height: 18),
+          _sectionTitle('የወሩ ግራፍ'),
+          const SizedBox(height: 8),
+          _buildReportChart(monthIncome, monthExpense, fixed, regular),
+
+          const SizedBox(height: 22),
+          _sectionTitle('የወሩ ዕለታዊ ሪፖርት'),
+          const SizedBox(height: 8),
+          _buildDailyMonthReport(selectedReportYear, selectedReportMonth),
+
+          const SizedBox(height: 28),
+          _sectionTitle('የዓመት ሪፖርት'),
+          const SizedBox(height: 8),
+          _buildAnnualReport(selectedReportYear, annual),
+        ],
+      ),
+    );
   }
 
-  int daysInEthiopianMonth(int year, int month) {
-    if (month <= 12) return 30;
-    final nextYear = year + 1;
-    final jdNow = _ethiopianToJd(year, 13, 6);
-    final jdNext = _ethiopianToJd(nextYear, 1, 1);
-    return jdNow < jdNext ? 6 : 5;
-  }
+  Widget _sectionTitle(String text) => Text(
+        text,
+        style: Theme.of(context)
+            .textTheme
+            .titleLarge
+            ?.copyWith(fontWeight: FontWeight.bold),
+      );
 
-  String annualLabel(int year) =>
-      calendarMode == 'ethiopian' ? 'ዓመተ ምህረት $year' : 'ዓመት $year';
-
-  List<TransactionItem> annualTransactions(int year) {
-    return transactions.where((t) {
-      if (calendarMode == 'ethiopian') {
-        return eth(t.dateTime).year == year;
-      }
-      return t.dateTime.year == year;
-    }).toList();
-  }
-
-  Widget reportMoneyCard(
-    String title,
-    double value, {
-    Color? color,
-    IconData? icon,
-  }) {
+  Widget _reportCard(
+      String title, double amount, IconData icon, Color? color) {
     return Card(
       child: ListTile(
         leading: CircleAvatar(
           backgroundColor: color?.withOpacity(.12),
-          child: Icon(icon ?? Icons.payments, color: color),
+          child: Icon(icon, color: color),
         ),
         title: Text(title),
         trailing: Text(
-          money(value),
+          _formatMoney(amount),
           style: TextStyle(
             fontWeight: FontWeight.bold,
             fontSize: 16,
@@ -1347,369 +1335,224 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
-  Widget buildReports() {
-    final now = DateTime.now();
-    final todayRecords = transactions.where((t) => sameDay(t.dateTime, now));
-    final todayIncome = sumIncome(todayRecords);
-    final todayExpense = sumExpense(todayRecords);
+  Widget _buildReportChart(
+      double income, double expense, double fixed, double regular) {
+    final max = [income, expense, fixed, regular]
+        .reduce((a, b) => a > b ? a : b);
 
-    final years = availableYears;
-    if (selectedAnnualYear == 0 || !years.contains(selectedAnnualYear)) {
-      selectedAnnualYear = years.first;
+    if (max == 0) {
+      return const Card(
+        child: Padding(
+          padding: EdgeInsets.all(30),
+          child: Center(child: Text('የወሩ መረጃ የለም')),
+        ),
+      );
     }
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('ሪፖርት')),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          Text(
-            'የቀን ሪፖርት',
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-          ),
-          const SizedBox(height: 10),
-          reportMoneyCard(
-            'የዛሬ ገቢ',
-            todayIncome,
-            color: Colors.blue,
-            icon: Icons.arrow_downward,
-          ),
-          reportMoneyCard(
-            'የዛሬ ወጪ',
-            todayExpense,
-            color: Colors.red,
-            icon: Icons.arrow_upward,
-          ),
-          reportMoneyCard(
-            'የዛሬ ንጹህ ትርፍ',
-            todayIncome - todayExpense,
-            icon: Icons.account_balance_wallet,
-          ),
-          const SizedBox(height: 28),
-
-          // MONTH REPORT
-          Text(
-            'የወር ሪፖርት',
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-          ),
-          const SizedBox(height: 10),
-          DropdownButtonFormField<String>(
-            value: availableMonths.contains(selectedMonth)
-                ? selectedMonth
-                : 'all',
-            decoration: const InputDecoration(
-              labelText: 'ወር ምረጥ',
-              prefixIcon: Icon(Icons.calendar_month),
-              border: OutlineInputBorder(),
-            ),
-            items: availableMonths
-                .map((k) => DropdownMenuItem(
-                      value: k,
-                      child: Text(monthLabel(k)),
-                    ))
-                .toList(),
-            onChanged: (v) {
-              if (v != null) setState(() => selectedMonth = v);
-            },
-          ),
-          const SizedBox(height: 12),
-          if (selectedMonth != 'all')
-            buildSelectedMonthReport(selectedMonth)
-          else
-            const Card(
-              child: Padding(
-                padding: EdgeInsets.all(18),
-                child: Text(
-                  'የተወሰነ ወር ለማየት ከላይ ወር ይምረጡ።',
-                ),
-              ),
-            ),
-
-          const SizedBox(height: 28),
-
-          // ANNUAL REPORT
-          Text(
-            'የዓመት ሪፖርት',
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-          ),
-          const SizedBox(height: 10),
-          DropdownButtonFormField<int>(
-            value: selectedAnnualYear,
-            decoration: const InputDecoration(
-              labelText: 'ዓመት ምረጥ',
-              prefixIcon: Icon(Icons.event_note),
-              border: OutlineInputBorder(),
-            ),
-            items: years
-                .map((y) => DropdownMenuItem(
-                      value: y,
-                      child: Text(annualLabel(y)),
-                    ))
-                .toList(),
-            onChanged: (v) {
-              if (v != null) setState(() => selectedAnnualYear = v);
-            },
-          ),
-          const SizedBox(height: 12),
-          buildAnnualReport(selectedAnnualYear),
-        ],
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          children: [
+            _chartBar('ገቢ', income, max, Icons.arrow_downward, Colors.blue),
+            const SizedBox(height: 14),
+            _chartBar('ጠቅላላ ወጪ', expense, max, Icons.arrow_upward,
+                Colors.red),
+            const SizedBox(height: 14),
+            _chartBar('ቋሚ ወጪ', fixed, max, Icons.home_work, Colors.red),
+            const SizedBox(height: 14),
+            _chartBar(
+                'መደበኛ ወጪ', regular, max, Icons.shopping_bag, Colors.red),
+          ],
+        ),
       ),
     );
   }
 
-  Widget buildSelectedMonthReport(String key) {
-    final p = key.split('-');
-    final year = int.tryParse(p[0]) ?? 0;
-    final month = int.tryParse(p[1]) ?? 0;
-    final list = transactionsForMonth(year, month).toList();
-
-    final income = sumIncome(list);
-    final expense = sumExpense(list);
-    final fixed = sumFixed(list);
-    final regular = sumRegular(list);
+  Widget _buildDailyMonthReport(int year, int month) {
+    final days = _reportDays(year, month);
 
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Text(
-              'የተመረጠው፦ ${monthLabel(key)}',
-              style: const TextStyle(
-                fontSize: 17,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ),
-        reportMoneyCard(
-          'የወሩ ገቢ',
-          income,
-          color: Colors.blue,
-          icon: Icons.trending_up,
-        ),
-        reportMoneyCard(
-          'የወሩ ወጪ',
-          expense,
-          color: Colors.red,
-          icon: Icons.trending_down,
-        ),
-        reportMoneyCard(
-          'ቋሚ ወጪ',
-          fixed,
-          color: Colors.red,
-          icon: Icons.home_work,
-        ),
-        reportMoneyCard(
-          'መደበኛ ወጪ',
-          regular,
-          color: Colors.red,
-          icon: Icons.shopping_bag,
-        ),
-        reportMoneyCard(
-          'የወሩ ንጹህ ትርፍ',
-          income - expense,
-          icon: Icons.account_balance,
-        ),
-        const SizedBox(height: 12),
-        buildChart(income, expense, title: 'የወሩ ገቢና ወጪ'),
-        const SizedBox(height: 16),
-        Text(
-          'የዕለት ዝርዝር',
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-        ),
-        const SizedBox(height: 8),
-        buildDailyMonthReport(year, month),
-      ],
-    );
-  }
-
-  Widget buildDailyMonthReport(int year, int month) {
-    final days = calendarMode == 'ethiopian'
-        ? daysInEthiopianMonth(year, month)
-        : DateTime(year, month + 1, 0).day;
-
-    return Column(
-      children: List.generate(days, (i) {
-        final day = i + 1;
-        final list = calendarMode == 'ethiopian'
-            ? transactionsForMonth(year, month)
-                .where((t) => eth(t.dateTime).day == day)
-                .toList()
-            : transactions.where((t) =>
-                t.dateTime.year == year &&
-                t.dateTime.month == month &&
-                t.dateTime.day == day).toList();
-
-        final income = sumIncome(list);
-        final expense = sumExpense(list);
-        final hasRecord = list.isNotEmpty;
-
-        final label = calendarMode == 'ethiopian'
-            ? '$day ${EthiopianDate.monthNames[month]} $year'
-            : '$day/${month.toString().padLeft(2, '0')}/$year';
+      children: days.map((day) {
+        final records = _recordsForReportDay(day).toList();
+        final income = _sumIncome(records);
+        final expense = _sumExpense(records);
+        final hasRecords = records.isNotEmpty;
 
         return Card(
-          margin: const EdgeInsets.only(bottom: 7),
+          margin: const EdgeInsets.only(bottom: 8),
           child: ExpansionTile(
-            leading: CircleAvatar(child: Text('$day')),
-            title: Text(label),
-            subtitle: Text(
-              hasRecord
-                  ? 'ገቢ: ${money(income)}  •  ወጪ: ${money(expense)}'
-                  : 'ያልተመዘገበበት ቀን / ሥራ ያልተሰራበት ቀን',
+            leading: CircleAvatar(
+              backgroundColor:
+                  (hasRecords ? Colors.teal : Colors.grey).withOpacity(.12),
+              child: Text(
+                calendarMode == 'ethiopian'
+                    ? '${_eth(day).day}'
+                    : '${day.day}',
+              ),
             ),
-            trailing: hasRecord
+            title: Text(
+              _dayLabel(day),
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            subtitle: hasRecords
                 ? Text(
-                    money(income - expense),
-                    style: const TextStyle(fontWeight: FontWeight.bold),
+                    'ገቢ ${_formatMoney(income)} • ወጪ ${_formatMoney(expense)}',
                   )
-                : const Icon(Icons.remove_circle_outline),
-            children: hasRecord
-                ? list
-                    .map(
-                      (t) => ListTile(
-                        dense: true,
-                        leading: Icon(
-                          t.isIncome
-                              ? Icons.arrow_downward
-                              : Icons.arrow_upward,
-                          color: t.isIncome ? Colors.blue : Colors.red,
-                        ),
-                        title: Text(t.title),
-                        subtitle: Text(
-                          '${t.staffName.isEmpty ? 'ስም የለም' : t.staffName} • '
-                          '${t.category} • ${formatTime(t.dateTime)}',
-                        ),
-                        trailing: Text(
-                          money(t.amount),
-                          style: TextStyle(
-                            color: t.isIncome ? Colors.blue : Colors.red,
-                            fontWeight: FontWeight.bold,
+                : const Text(
+                    'ያልተመዘገበበት ቀን • ሥራ ያልተሰራበት ቀን',
+                  ),
+            children: hasRecords
+                ? [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                      child: Column(
+                        children: [
+                          ...records.map(
+                            (t) => ListTile(
+                              dense: true,
+                              leading: Icon(
+                                t.isIncome
+                                    ? Icons.arrow_downward
+                                    : Icons.arrow_upward,
+                                color:
+                                    t.isIncome ? Colors.blue : Colors.red,
+                              ),
+                              title: Text(t.title),
+                              subtitle: Text(
+                                  '${t.staffName.isEmpty ? 'ስም የለም' : t.staffName} • ${_formatTime(t.dateTime)}'),
+                              trailing: Text(
+                                _formatMoney(t.amount),
+                                style: TextStyle(
+                                  color:
+                                      t.isIncome ? Colors.blue : Colors.red,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
                           ),
+                          const Divider(),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text('የቀኑ ትርፍ',
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.bold)),
+                              Text(
+                                _formatMoney(income - expense),
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.bold),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                        ],
+                      ),
+                    ),
+                  ]
+                : const [
+                    Padding(
+                      padding: EdgeInsets.fromLTRB(16, 0, 16, 16),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          'በዚህ ቀን ምንም ገቢ ወይም ወጪ አልተመዘገበም።',
                         ),
                       ),
-                    )
-                    .toList()
-                : const [],
+                    ),
+                  ],
           ),
         );
-      }),
+      }).toList(),
     );
   }
 
-  Widget buildAnnualReport(int year) {
-    final list = annualTransactions(year);
-    final income = sumIncome(list);
-    final expense = sumExpense(list);
-    final fixed = sumFixed(list);
-    final regular = sumRegular(list);
+  Map<String, double> _annualTotals(int year) {
+    double income = 0;
+    double expense = 0;
+    double fixed = 0;
+    double regular = 0;
 
+    for (final t in transactions) {
+      final matches = calendarMode == 'ethiopian'
+          ? _eth(t.dateTime).year == year
+          : t.dateTime.year == year;
+
+      if (!matches) continue;
+      if (t.isIncome) {
+        income += t.amount;
+      } else {
+        expense += t.amount;
+        if (t.expenseClass == 'ቋሚ ወጪ') {
+          fixed += t.amount;
+        } else {
+          regular += t.amount;
+        }
+      }
+    }
+
+    return {
+      'income': income,
+      'expense': expense,
+      'fixed': fixed,
+      'regular': regular,
+      'profit': income - expense,
+    };
+  }
+
+  Widget _buildAnnualReport(int year, Map<String, double> totals) {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Text(
-              annualLabel(year),
-              style: const TextStyle(
-                fontSize: 17,
-                fontWeight: FontWeight.bold,
-              ),
+          child: ListTile(
+            leading: const CircleAvatar(
+              child: Icon(Icons.calendar_view_month),
+            ),
+            title: Text('ዓመት $year'),
+            subtitle: const Text('የዓመቱ አጠቃላይ ውጤት'),
+            trailing: Text(
+              _formatMoney(totals['profit'] ?? 0),
+              style: const TextStyle(fontWeight: FontWeight.bold),
             ),
           ),
         ),
-        reportMoneyCard(
-          'የዓመቱ ጠቅላላ ገቢ',
-          income,
-          color: Colors.blue,
-          icon: Icons.trending_up,
-        ),
-        reportMoneyCard(
-          'የዓመቱ ጠቅላላ ወጪ',
-          expense,
-          color: Colors.red,
-          icon: Icons.trending_down,
-        ),
-        reportMoneyCard(
-          'የዓመቱ ቋሚ ወጪ',
-          fixed,
-          color: Colors.red,
-          icon: Icons.home_work,
-        ),
-        reportMoneyCard(
-          'የዓመቱ መደበኛ ወጪ',
-          regular,
-          color: Colors.red,
-          icon: Icons.shopping_bag,
-        ),
-        reportMoneyCard(
-          'የዓመቱ ንጹህ ትርፍ',
-          income - expense,
-          icon: Icons.account_balance,
-        ),
-        const SizedBox(height: 12),
-        buildChart(income, expense, title: 'የዓመቱ ገቢና ወጪ'),
-        const SizedBox(height: 18),
-        Text(
-          'የወራት ዝርዝር',
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-        ),
+        _reportCard('የዓመቱ ገቢ', totals['income'] ?? 0,
+            Icons.trending_up, Colors.blue),
+        _reportCard('የዓመቱ ወጪ', totals['expense'] ?? 0,
+            Icons.trending_down, Colors.red),
+        _reportCard('የዓመቱ ቋሚ ወጪ', totals['fixed'] ?? 0,
+            Icons.home_work, Colors.red),
+        _reportCard('የዓመቱ መደበኛ ወጪ', totals['regular'] ?? 0,
+            Icons.shopping_bag, Colors.red),
+        _reportCard('የዓመቱ ንጹህ ትርፍ', totals['profit'] ?? 0,
+            Icons.account_balance, null),
         const SizedBox(height: 8),
-        ...List.generate(
-          calendarMode == 'ethiopian' ? 13 : 12,
-          (i) => buildAnnualMonthRow(year, i + 1),
-        ),
+        ...List.generate(_monthCount, (i) {
+          final month = i + 1;
+          final records = _recordsForReportMonth(year, month).toList();
+          final income = _sumIncome(records);
+          final expense = _sumExpense(records);
+          final profit = income - expense;
+
+          return Card(
+            margin: const EdgeInsets.only(bottom: 8),
+            child: ListTile(
+              leading: CircleAvatar(
+                child: Text('$month'),
+              ),
+              title: Text(_monthLabel(year, month)),
+              subtitle: records.isEmpty
+                  ? const Text('ምንም መዝገብ የለም')
+                  : Text(
+                      'ገቢ ${_formatMoney(income)} • ወጪ ${_formatMoney(expense)}'),
+              trailing: Text(
+                _formatMoney(profit),
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
+          );
+        }),
       ],
-    );
-  }
-
-  Widget buildAnnualMonthRow(int year, int month) {
-    final list = transactionsForMonth(year, month).toList();
-    final income = sumIncome(list);
-    final expense = sumExpense(list);
-    final has = list.isNotEmpty;
-
-    final label = calendarMode == 'ethiopian'
-        ? EthiopianDate.monthNames[month]
-        : monthLabel('$year-$month');
-
-    return Card(
-      margin: const EdgeInsets.only(bottom: 7),
-      child: ListTile(
-        leading: CircleAvatar(child: Text('$month')),
-        title: Text(label),
-        subtitle: Text(
-          has
-              ? 'ገቢ ${money(income)}  •  ወጪ ${money(expense)}'
-              : 'ያልተመዘገበ ወር',
-        ),
-        trailing: Text(
-          has ? money(income - expense) : '—',
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
-        onTap: has
-            ? () {
-                final key = '$year-$month';
-                setState(() {
-                  selectedMonth = key;
-                  currentIndex = 2;
-                });
-              }
-            : null,
-      ),
     );
   }
 
@@ -1717,17 +1560,20 @@ class _MainScreenState extends State<MainScreen> {
   // PHOTOS
   // ==========================================================
 
-  Future<void> addPhoto(ImageSource source) async {
+  Future<void> _addPhoto(ImageSource source) async {
     try {
-      final picked = await picker.pickImage(source: source, imageQuality: 85);
+      final picked =
+          await picker.pickImage(source: source, imageQuality: 85);
       if (picked == null) return;
 
       final dir = await getApplicationDocumentsDirectory();
-      final name = 'salon_${DateTime.now().millisecondsSinceEpoch}.jpg';
-      final dest = File('${dir.path}/$name');
-      await File(picked.path).copy(dest.path);
+      final name =
+          'salon_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final destination = File('${dir.path}/$name');
 
-      setState(() => photos.add(dest.path));
+      await File(picked.path).copy(destination.path);
+      if (!mounted) return;
+      setState(() => photos.add(destination.path));
       await _savePhotos();
 
       if (mounted) {
@@ -1744,28 +1590,26 @@ class _MainScreenState extends State<MainScreen> {
     }
   }
 
-  Future<void> deletePhoto(String path) async {
-    final ok = await showDialog<bool>(
+  Future<void> _deletePhoto(String path) async {
+    final confirm = await showDialog<bool>(
       context: context,
-      builder: (c) => AlertDialog(
+      builder: (context) => AlertDialog(
         title: const Text('ፎቶ ሰርዝ'),
         content: const Text(
-          'ፎቶው ወደ Recycle Bin ይሄዳል።\nበኋላ Restore ማድረግ ይችላሉ።',
-        ),
+            'ፎቶው ወደ Recycle Bin ይወሰዳል።\nበኋላ Restore ማድረግ ይችላሉ።'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(c, false),
-            child: const Text('አይ'),
-          ),
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('አይ')),
           FilledButton(
-            onPressed: () => Navigator.pop(c, true),
-            child: const Text('ወደ Recycle Bin ላክ'),
-          ),
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('ወደ Recycle Bin ላክ')),
         ],
       ),
     );
 
-    if (ok != true) return;
+    if (confirm != true) return;
+
     setState(() {
       photos.remove(path);
       deletedPhotos.add(path);
@@ -1773,7 +1617,7 @@ class _MainScreenState extends State<MainScreen> {
     await _savePhotos();
   }
 
-  Future<void> restorePhoto(String path) async {
+  Future<void> _restorePhoto(String path) async {
     setState(() {
       deletedPhotos.remove(path);
       if (!photos.contains(path)) photos.add(path);
@@ -1781,35 +1625,35 @@ class _MainScreenState extends State<MainScreen> {
     await _savePhotos();
   }
 
-  Future<void> permanentlyDeletePhoto(String path) async {
-    final ok = await showDialog<bool>(
+  Future<void> _permanentlyDeletePhoto(String path) async {
+    final confirm = await showDialog<bool>(
       context: context,
-      builder: (c) => AlertDialog(
+      builder: (context) => AlertDialog(
         title: const Text('በቋሚነት ሰርዝ'),
-        content: const Text('ይህ ፎቶ በቋሚነት ይሰረዛል።'),
+        content: const Text('ይህ ፎቶ በቋሚነት ይሰረዛል። መመለስ አይቻልም።'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(c, false),
-            child: const Text('ተወው'),
-          ),
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('ተወው')),
           FilledButton(
-            onPressed: () => Navigator.pop(c, true),
-            child: const Text('ሰርዝ'),
-          ),
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('ሰርዝ')),
         ],
       ),
     );
 
-    if (ok != true) return;
+    if (confirm != true) return;
+
     try {
-      final f = File(path);
-      if (await f.exists()) await f.delete();
+      final file = File(path);
+      if (await file.exists()) await file.delete();
     } catch (_) {}
+
     setState(() => deletedPhotos.remove(path));
     await _savePhotos();
   }
 
-  void openPhotoViewer(String path) {
+  void _openPhotoViewer(String path) {
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -1832,14 +1676,14 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
-  Widget buildPhotos() {
+  Widget _buildPhotos() {
     return Scaffold(
       appBar: AppBar(
         title: const Text('ፎቶዎች'),
         actions: [
           IconButton(
             tooltip: 'Recycle Bin',
-            onPressed: openRecycleBin,
+            onPressed: _openRecycleBin,
             icon: Badge(
               isLabelVisible: deletedPhotos.isNotEmpty,
               label: Text('${deletedPhotos.length}'),
@@ -1861,21 +1705,22 @@ class _MainScreenState extends State<MainScreen> {
             )
           : GridView.builder(
               padding: const EdgeInsets.all(12),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              gridDelegate:
+                  const SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 2,
                 crossAxisSpacing: 10,
                 mainAxisSpacing: 10,
               ),
               itemCount: photos.length,
-              itemBuilder: (_, i) {
-                final path = photos[i];
+              itemBuilder: (_, index) {
+                final path = photos[index];
                 return Card(
                   clipBehavior: Clip.antiAlias,
                   child: Stack(
                     fit: StackFit.expand,
                     children: [
                       GestureDetector(
-                        onTap: () => openPhotoViewer(path),
+                        onTap: () => _openPhotoViewer(path),
                         child: Image.file(
                           File(path),
                           fit: BoxFit.cover,
@@ -1887,7 +1732,7 @@ class _MainScreenState extends State<MainScreen> {
                         top: 5,
                         right: 5,
                         child: IconButton.filledTonal(
-                          onPressed: () => deletePhoto(path),
+                          onPressed: () => _deletePhoto(path),
                           icon: const Icon(Icons.delete),
                         ),
                       ),
@@ -1906,13 +1751,13 @@ class _MainScreenState extends State<MainScreen> {
         children: [
           FloatingActionButton.small(
             heroTag: 'camera',
-            onPressed: () => addPhoto(ImageSource.camera),
+            onPressed: () => _addPhoto(ImageSource.camera),
             child: const Icon(Icons.camera_alt),
           ),
           const SizedBox(height: 10),
           FloatingActionButton(
             heroTag: 'gallery',
-            onPressed: () => addPhoto(ImageSource.gallery),
+            onPressed: () => _addPhoto(ImageSource.gallery),
             child: const Icon(Icons.photo),
           ),
         ],
@@ -1920,7 +1765,7 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
-  void openRecycleBin() {
+  void _openRecycleBin() {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -1948,8 +1793,8 @@ class _MainScreenState extends State<MainScreen> {
                         mainAxisSpacing: 10,
                       ),
                       itemCount: deletedPhotos.length,
-                      itemBuilder: (_, i) {
-                        final path = deletedPhotos[i];
+                      itemBuilder: (_, index) {
+                        final path = deletedPhotos[index];
                         return Card(
                           clipBehavior: Clip.antiAlias,
                           child: Stack(
@@ -1959,9 +1804,8 @@ class _MainScreenState extends State<MainScreen> {
                                 File(path),
                                 fit: BoxFit.cover,
                                 errorBuilder: (_, __, ___) => const Icon(
-                                  Icons.broken_image,
-                                  size: 50,
-                                ),
+                                    Icons.broken_image,
+                                    size: 50),
                               ),
                               Positioned(
                                 bottom: 5,
@@ -1971,7 +1815,7 @@ class _MainScreenState extends State<MainScreen> {
                                   children: [
                                     Expanded(
                                       child: FilledButton.tonalIcon(
-                                        onPressed: () => restorePhoto(path),
+                                        onPressed: () => _restorePhoto(path),
                                         icon: const Icon(Icons.restore),
                                         label: const Text('Restore'),
                                       ),
@@ -1979,7 +1823,7 @@ class _MainScreenState extends State<MainScreen> {
                                     const SizedBox(width: 5),
                                     IconButton.filledTonal(
                                       onPressed: () =>
-                                          permanentlyDeletePhoto(path),
+                                          _permanentlyDeletePhoto(path),
                                       icon: const Icon(Icons.delete_forever),
                                     ),
                                   ],
@@ -1997,61 +1841,11 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
-  Future<void> changeAdminPassword() async {
-    final username = TextEditingController();
-    final oldPass = TextEditingController();
-    final newPass = TextEditingController();
-    final confirm = TextEditingController();
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (c) => AlertDialog(
-        title: const Text('Admin የይለፍ ቃል ቀይር'),
-        content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
-          TextField(controller: username, decoration: const InputDecoration(labelText: 'አዲስ Username')),
-          TextField(controller: oldPass, obscureText: true, decoration: const InputDecoration(labelText: 'የአሁኑ Password')),
-          TextField(controller: newPass, obscureText: true, decoration: const InputDecoration(labelText: 'አዲስ Password')),
-          TextField(controller: confirm, obscureText: true, decoration: const InputDecoration(labelText: 'Password እንደገና')),
-        ])),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('ይቅር')),
-          FilledButton(onPressed: () async {
-            final p = await SharedPreferences.getInstance();
-            final currentUser = p.getString('adminUsername') ?? 'admin';
-            final currentPass = p.getString('adminPassword') ?? '1234';
-            if (username.text.trim().isEmpty || oldPass.text != currentPass || newPass.text.length < 4 || newPass.text != confirm.text) {
-              if (c.mounted) ScaffoldMessenger.of(c).showSnackBar(const SnackBar(content: Text('መረጃውን ያረጋግጡ፤ Password ቢያንስ 4 ፊደል/ቁጥር ይሁን።')));
-              return;
-            }
-            await p.setString('adminUsername', username.text.trim());
-            await p.setString('adminPassword', newPass.text);
-            if (c.mounted) Navigator.pop(c, true);
-          }, child: const Text('አስቀምጥ')),
-        ],
-      ),
-    );
-    username.dispose(); oldPass.dispose(); newPass.dispose(); confirm.dispose();
-    if (ok == true) {
-      await widget.onCredentialsChanged();
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('የAdmin መረጃ ተቀይሯል ✅')));
-    }
-  }
-
-  void logoutAdmin() {
-    showDialog<bool>(context: context, builder: (c) => AlertDialog(
-      title: const Text('Logout'),
-      content: const Text('ከAdmin መለያ መውጣት ይፈልጋሉ?'),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('አይ')),
-        FilledButton(onPressed: () => Navigator.pop(c, true), child: const Text('ውጣ')),
-      ],
-    )).then((yes) { if (yes == true) widget.onLogout(); });
-  }
-
   // ==========================================================
   // PROFILE / SETTINGS
   // ==========================================================
 
-  Future<void> pickSalonPhoto() async {
+  Future<void> _pickSalonPhoto() async {
     final picked =
         await picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
     if (picked == null) return;
@@ -2059,31 +1853,32 @@ class _MainScreenState extends State<MainScreen> {
     final dir = await getApplicationDocumentsDirectory();
     final name =
         'salon_profile_${DateTime.now().millisecondsSinceEpoch}.jpg';
-    final dest = File('${dir.path}/$name');
-    await File(picked.path).copy(dest.path);
+    final destination = File('${dir.path}/$name');
 
-    setState(() => salonPhoto = dest.path);
+    await File(picked.path).copy(destination.path);
+
+    setState(() => salonPhoto = destination.path);
     await _saveProfile();
   }
 
-  void editProfile() {
-    final name = TextEditingController(text: salonName);
-    final phone = TextEditingController(text: phoneNumber);
+  void _editProfile() {
+    final nameController = TextEditingController(text: salonName);
+    final phoneController = TextEditingController(text: phoneNumber);
 
     showDialog(
       context: context,
-      builder: (c) => AlertDialog(
+      builder: (context) => AlertDialog(
         title: const Text('የሳሎን መረጃ'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
-              controller: name,
+              controller: nameController,
               decoration: const InputDecoration(labelText: 'የሳሎን ስም'),
             ),
             const SizedBox(height: 12),
             TextField(
-              controller: phone,
+              controller: phoneController,
               keyboardType: TextInputType.phone,
               decoration: const InputDecoration(labelText: 'ስልክ ቁጥር'),
             ),
@@ -2091,19 +1886,19 @@ class _MainScreenState extends State<MainScreen> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(c),
+            onPressed: () => Navigator.pop(context),
             child: const Text('ይቅር'),
           ),
           FilledButton(
             onPressed: () async {
               setState(() {
-                salonName = name.text.trim().isEmpty
+                salonName = nameController.text.trim().isEmpty
                     ? 'የእኔ ሳሎን'
-                    : name.text.trim();
-                phoneNumber = phone.text.trim();
+                    : nameController.text.trim();
+                phoneNumber = phoneController.text.trim();
               });
               await _saveProfile();
-              if (c.mounted) Navigator.pop(c);
+              if (context.mounted) Navigator.pop(context);
             },
             child: const Text('አስቀምጥ'),
           ),
@@ -2112,7 +1907,7 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
-  Widget buildProfile() {
+  Widget _buildProfile() {
     return Scaffold(
       appBar: AppBar(title: const Text('እኔ / Settings')),
       body: ListView(
@@ -2124,7 +1919,7 @@ class _MainScreenState extends State<MainScreen> {
               child: Column(
                 children: [
                   GestureDetector(
-                    onTap: pickSalonPhoto,
+                    onTap: _pickSalonPhoto,
                     child: CircleAvatar(
                       radius: 55,
                       backgroundImage:
@@ -2137,14 +1932,15 @@ class _MainScreenState extends State<MainScreen> {
                   const SizedBox(height: 12),
                   Text(
                     salonName,
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleLarge
+                        ?.copyWith(fontWeight: FontWeight.bold),
                   ),
                   if (phoneNumber.isNotEmpty) Text(phoneNumber),
                   const SizedBox(height: 10),
                   OutlinedButton.icon(
-                    onPressed: editProfile,
+                    onPressed: _editProfile,
                     icon: const Icon(Icons.edit),
                     label: const Text('የሳሎን መረጃ ቀይር'),
                   ),
@@ -2169,8 +1965,9 @@ class _MainScreenState extends State<MainScreen> {
                     if (v == null) return;
                     setState(() {
                       calendarMode = v;
-                      selectedMonth = 'all';
-                      selectedAnnualYear = 0;
+                      selectedReportYear = 0;
+                      selectedReportMonth = 0;
+                      _ensureReportSelection();
                     });
                     await _saveProfile();
                   },
@@ -2183,30 +1980,12 @@ class _MainScreenState extends State<MainScreen> {
                     if (v == null) return;
                     setState(() {
                       calendarMode = v;
-                      selectedMonth = 'all';
-                      selectedAnnualYear = 0;
+                      selectedReportYear = 0;
+                      selectedReportMonth = 0;
+                      _ensureReportSelection();
                     });
                     await _saveProfile();
                   },
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 15),
-          Card(
-            child: Column(
-              children: [
-                ListTile(
-                  leading: const Icon(Icons.password),
-                  title: const Text('Admin የይለፍ ቃል / Username'),
-                  subtitle: const Text('የAdmin መግቢያ መረጃ ይቀይሩ'),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: changeAdminPassword,
-                ),
-                ListTile(
-                  leading: const Icon(Icons.logout),
-                  title: const Text('Logout'),
-                  onTap: logoutAdmin,
                 ),
               ],
             ),
@@ -2222,23 +2001,22 @@ class _MainScreenState extends State<MainScreen> {
           ),
           const SizedBox(height: 15),
           Card(
-            child: ListTile(
-              leading: const Icon(Icons.backup),
-              title: const Text('የመረጃ Backup / ማስቀመጫ'),
-              subtitle: const Text(
-                'ገቢ፣ ወጪ፣ ፕሮፋይልና የፎቶ መረጃ ወደ Backup ፋይል ይላካል።',
+            child: const ListTile(
+              leading: Icon(Icons.save),
+              title: Text('የመረጃ ማስቀመጫ'),
+              subtitle: Text(
+                'ገቢ፣ ወጪና ፎቶዎች በስልኩ ውስጥ ይቀመጣሉ።',
               ),
-              trailing: const Icon(Icons.ios_share),
-              onTap: backupData,
             ),
           ),
           const SizedBox(height: 25),
           Center(
             child: Text(
               'Salon Manager',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
+              style: Theme.of(context)
+                  .textTheme
+                  .titleMedium
+                  ?.copyWith(fontWeight: FontWeight.bold),
             ),
           ),
           const SizedBox(height: 5),
@@ -2252,30 +2030,31 @@ class _MainScreenState extends State<MainScreen> {
   // NAVIGATION
   // ==========================================================
 
-  Widget currentPage() {
+  Widget _currentPage() {
     switch (currentIndex) {
       case 0:
-        return buildHome();
+        return _buildHome();
       case 1:
-        return buildHistory();
+        return _buildHistory();
       case 2:
-        return buildReports();
+        return _buildReports();
       case 3:
-        return buildPhotos();
+        return _buildPhotos();
       case 4:
-        return buildProfile();
+        return _buildProfile();
       default:
-        return buildHome();
+        return _buildHome();
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: currentPage(),
+      body: _currentPage(),
       bottomNavigationBar: NavigationBar(
         selectedIndex: currentIndex,
-        onDestinationSelected: (i) => setState(() => currentIndex = i),
+        onDestinationSelected: (index) =>
+            setState(() => currentIndex = index),
         destinations: const [
           NavigationDestination(
             icon: Icon(Icons.home_outlined),
