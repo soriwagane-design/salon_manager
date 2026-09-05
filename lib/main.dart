@@ -97,7 +97,7 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
         const Text('መጀመሪያ ጊዜ: admin / 1234', style: TextStyle(fontSize: 12)),
       ])),
     )),
-  );
+  ));
 }
 
 
